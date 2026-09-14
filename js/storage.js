@@ -66,3 +66,24 @@ const TimerStorage = {
     localStorage.removeItem(TIMER_STORAGE_KEY);
   }
 };
+
+const SYNC_META_KEY = "studyTracker.sync.v1";
+
+const SyncStorage = {
+  load() {
+    try {
+      const value = JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}");
+      return {
+        sessionTombstones: value.sessionTombstones || {},
+        reviewTombstones: value.reviewTombstones || {},
+        lastSyncAt: value.lastSyncAt || null
+      };
+    } catch (error) {
+      console.error("Erro ao carregar metadados de sincronização:", error);
+      return { sessionTombstones: {}, reviewTombstones: {}, lastSyncAt: null };
+    }
+  },
+  save(value) {
+    localStorage.setItem(SYNC_META_KEY, JSON.stringify(value));
+  }
+};

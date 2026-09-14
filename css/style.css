@@ -140,6 +140,14 @@ button { cursor: pointer; }
   gap: 12px;
 }
 
+.sync-status { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--muted); padding:8px 11px; font:inherit; font-size:12px; cursor:pointer; }
+.sync-dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; }
+.sync-status.syncing .sync-dot { background:#f59e0b; animation:pulse 1s infinite; }
+.sync-status.synced .sync-dot { background:#22c55e; }
+.sync-status.offline .sync-dot, .sync-status.error .sync-dot { background:#ef4444; }
+@keyframes pulse { 50% { opacity:.35; } }
+@media (max-width: 640px) { .sync-status { padding:8px; } #syncStatusText { display:none; } }
+
 .avatar {
   width: 40px;
   height: 40px;

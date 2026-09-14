@@ -1,37 +1,35 @@
-# Study Tracker — Etapa 5
+# Study Tracker — Etapa 6
 
-Versão acumulativa com dashboard inteligente e gráficos.
+Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
-## Novidades
+## Executar localmente
 
-### Gráficos
-- Evolução de desempenho nos últimos 14 dias
-- Horas por matéria
-- Questões por dia
-- Relação entre tempo estudado e desempenho
+Sirva a pasta com um servidor HTTP (abrir por `file://` pode limitar chamadas de rede):
 
-### “O que devo estudar agora?”
-O sistema gera uma prioridade combinando:
-- percentual de acertos
-- confiança da amostra
-- revisão atrasada ou para hoje
-- tempo desde o último contato
-- baixo volume de questões
+```bash
+npx serve .
+```
 
-A pontuação vai de 0 a 100 e serve para ordenar os subtemas que mais precisam de atenção.
+## Estrutura
 
-### Resumo inteligente
-- maior prioridade atual
-- quantidade de revisões atrasadas
-- quantidade de subtemas abaixo de 70%
-- confiança do principal tópico recomendado
+- `js/storage.js`: cache local, cronômetro e metadados de sincronização.
+- `js/api.js`: único ponto de acesso HTTP.
+- `js/sync.js`: migração, merge last-write-wins e recuperação offline.
+- `js/reviews.js`: regras puras de revisão espaçada.
+- `js/app.js`: interface, métricas, CRUD e gráficos.
+- `backend/Code.gs`: Web App para Google Sheets.
+- `SETUP.md`: configuração e publicação passo a passo.
 
-## Tecnologia adicionada
-- Chart.js via CDN
+## Dados e sincronização
 
-## Próxima etapa
-Etapa 6 — Google Sheets + Apps Script + publicação:
-- persistência em nuvem
-- sincronização
-- tratamento de erros
-- estrutura pronta para GitHub Pages ou Vercel
+A tela abre imediatamente com o cache local. Depois consulta a nuvem, une registros pelo `id` e conserva a versão com o `updatedAt` mais recente. Se o backend estiver vazio, os dados locais são migrados automaticamente. Exclusões usam tombstones para que registros antigos não reapareçam.
+
+Uma revisão possui `sessionId`, ligando-a à única sessão usada nas estatísticas e evitando dupla contagem. O intervalo salvo não é recalculado ao renderizar o dashboard.
+
+## Backup e segurança
+
+Google Sheets é a persistência principal; LocalStorage permanece como cache/fallback. A URL do Apps Script não é segredo e nenhum token deve ser inserido no frontend. Uma implantação pública pode ser chamada por quem descobrir a URL; mantenha-a privada e não armazene dados sensíveis.
+
+## Publicação
+
+O frontend está pronto para GitHub Pages. As instruções completas estão em `SETUP.md`.

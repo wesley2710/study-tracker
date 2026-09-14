@@ -16,6 +16,8 @@ const studyDate = document.querySelector("#studyDate");
 const subjectOptions = document.querySelector("#subjectOptions");
 const topicOptions = document.querySelector("#topicOptions");
 const subjectPerformance = document.querySelector("#subjectPerformance");
+const syncStatus = document.querySelector("#syncStatus");
+const syncStatusText = document.querySelector("#syncStatusText");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -78,6 +80,7 @@ let efficiencyChartInstance = null;
 let sessions = StudyStorage.load();
 let editingId = null;
 let reviews = ReviewStorage.load();
+let syncMeta = SyncStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let activeTimer = TimerStorage.load();
@@ -185,6 +188,7 @@ function updateAccuracyPreview() {
 function persistAndRender() {
   StudyStorage.save(sessions);
   renderAll();
+  StudySync.run();
 }
 
 function getFilteredSessions() {
@@ -786,8 +790,10 @@ function buildReviewSchedule() {
     }
 
     const streak = getReviewStreak(topic.subject, topic.topic);
+    // Uma revisão concluída já possui o intervalo calculado. Renderizar o
+    // dashboard nunca deve avançá-lo novamente; só uma nova revisão progride.
     const nextInterval = latestReview
-      ? ReviewEngine.getNextInterval(lastPercentage, previousInterval, streak)
+      ? (latestReview.nextInterval || ReviewEngine.getBaseInterval(lastPercentage))
       : ReviewEngine.getBaseInterval(lastPercentage);
 
     const nextDate = ReviewEngine.addDays(lastDate, nextInterval);
@@ -984,8 +990,11 @@ function saveReviewResult(event) {
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions);
 
   const now = Date.now();
+  const reviewId = createId();
+  const sessionId = createId();
   reviews.push({
-    id: createId(),
+    id: reviewId,
+    sessionId,
     subject,
     topic,
     questions,
@@ -993,12 +1002,13 @@ function saveReviewResult(event) {
     date,
     previousInterval,
     nextInterval,
-    createdAt: now
+    createdAt: now,
+    updatedAt: now
   });
 
   // Toda revisão também é atividade real e entra nas estatísticas gerais.
   sessions.push({
-    id: createId(),
+    id: sessionId,
     subject,
     topic,
     questions,
@@ -1014,6 +1024,7 @@ function saveReviewResult(event) {
   StudyStorage.save(sessions);
   closeReviewModalNow();
   renderAll();
+  StudySync.run();
   showToast(`Revisão concluída. Próxima em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}.`, "success");
 }
 
@@ -1225,7 +1236,16 @@ function deleteSession(id) {
   const ok = window.confirm(`Excluir o registro "${session.subject} — ${session.topic}"?`);
   if (!ok) return;
 
+  const deletedAt = Date.now();
   sessions = sessions.filter((item) => item.id !== id);
+  syncMeta.sessionTombstones[id] = deletedAt;
+  const linkedReviews = reviews.filter((item) => item.sessionId === id);
+  if (linkedReviews.length) {
+    linkedReviews.forEach((item) => { syncMeta.reviewTombstones[item.id] = deletedAt; });
+    reviews = reviews.filter((item) => item.sessionId !== id);
+    ReviewStorage.save(reviews);
+  }
+  SyncStorage.save(syncMeta);
 
   if (editingId === id) resetForm();
   persistAndRender();
@@ -1243,6 +1263,37 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value);
+}
+
+function syncReviewRecordForSession(session) {
+  const existing = reviews.find((item) => item.sessionId === session.id);
+  if (session.activityType !== "review") {
+    if (existing) {
+      syncMeta.reviewTombstones[existing.id] = Date.now();
+      reviews = reviews.filter((item) => item.id !== existing.id);
+    }
+    return;
+  }
+
+  const priorReviews = reviews
+    .filter((item) => item.sessionId !== session.id && item.subject === session.subject && item.topic === session.topic)
+    .sort((a, b) => b.date.localeCompare(a.date) || Number(b.createdAt) - Number(a.createdAt));
+  const previousInterval = priorReviews[0]?.nextInterval || null;
+  const percentage = (session.correct / session.questions) * 100;
+  const streak = priorReviews.slice(0, 2).every((item) => (item.correct / item.questions) * 100 >= 90)
+    ? Math.min(2, priorReviews.length) + 1
+    : percentage >= 90 ? 1 : 0;
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions);
+  const now = Date.now();
+  const record = {
+    id: existing?.id || createId(), sessionId: session.id,
+    subject: session.subject, topic: session.topic,
+    questions: session.questions, correct: session.correct, date: session.date,
+    previousInterval, nextInterval,
+    createdAt: existing?.createdAt || session.createdAt || now,
+    updatedAt: now
+  };
+  reviews = existing ? reviews.map((item) => item.id === existing.id ? record : item) : [...reviews, record];
 }
 
 studyForm.addEventListener("input", (event) => {
@@ -1270,21 +1321,27 @@ studyForm.addEventListener("submit", (event) => {
         updatedAt: Date.now()
       };
     });
+    syncReviewRecordForSession(sessions.find((session) => session.id === editingId));
     showToast("Sessão atualizada.", "success");
   } else {
+    const newId = createId();
     sessions.push({
-      id: createId(),
+      id: newId,
       ...data,
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+    syncReviewRecordForSession(sessions[sessions.length - 1]);
     showToast("Sessão salva no navegador.", "success");
   }
 
   StudyStorage.save(sessions);
+  ReviewStorage.save(reviews);
+  SyncStorage.save(syncMeta);
   resetTimerAfterSave();
   resetForm();
   renderAll();
+  StudySync.run();
 });
 
 cancelEditButton.addEventListener("click", resetForm);
@@ -1363,6 +1420,29 @@ cancelReviewModal.addEventListener("click", closeReviewModalNow);
 
 reviewModal.addEventListener("click", (event) => {
   if (event.target === reviewModal) closeReviewModalNow();
+});
+
+function setSyncStatus(state, detail = "") {
+  const labels = { local: "Somente local", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
+  syncStatus.className = `sync-status ${state}`;
+  syncStatusText.textContent = labels[state] || labels.local;
+  syncStatus.title = detail ? `${labels[state]} — ${detail}` : labels[state];
+}
+
+syncStatus.addEventListener("click", () => StudySync.run());
+
+StudySync.init({
+  getState: () => ({ sessions, reviews, meta: syncMeta }),
+  applyState: (state) => {
+    sessions = state.sessions;
+    reviews = state.reviews;
+    syncMeta = state.meta;
+    StudyStorage.save(sessions);
+    ReviewStorage.save(reviews);
+    SyncStorage.save(syncMeta);
+    renderAll();
+  },
+  setStatus: setSyncStatus
 });
 
 formatToday();
