@@ -68,6 +68,7 @@ const TimerStorage = {
 };
 
 const SYNC_META_KEY = "studyTracker.sync.v1";
+const AUTH_TOKEN_KEY = "studyTracker.authToken.v1";
 
 const SyncStorage = {
   load() {
@@ -86,4 +87,10 @@ const SyncStorage = {
   save(value) {
     localStorage.setItem(SYNC_META_KEY, JSON.stringify(value));
   }
+};
+
+const AuthStorage = {
+  load() { return localStorage.getItem(AUTH_TOKEN_KEY) || ""; },
+  save(token) { localStorage.setItem(AUTH_TOKEN_KEY, String(token || "").trim()); },
+  clear() { localStorage.removeItem(AUTH_TOKEN_KEY); }
 };

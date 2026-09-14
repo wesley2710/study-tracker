@@ -23,6 +23,7 @@ function doPost(e) {
 
 function handleRequest_(request) {
   try {
+    authorize_(request);
     const action = request.action || 'getAll';
     if (action === 'getAll') return json_({ ok: true, data: getAll_() });
     if (action === 'sync') return json_({ ok: true, data: sync_(request) });
@@ -34,6 +35,21 @@ function handleRequest_(request) {
   } catch (error) {
     return json_({ ok: false, error: String(error.message || error) });
   }
+}
+
+function authorize_(request) {
+  const expected = PropertiesService.getScriptProperties().getProperty('STUDY_TRACKER_TOKEN');
+  if (!expected) throw new Error('AUTH_NOT_CONFIGURED');
+  const received = String((request && request.token) || '');
+  if (!safeEqual_(received, expected)) throw new Error('UNAUTHORIZED');
+}
+
+function safeEqual_(left, right) {
+  const a = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(left));
+  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(right));
+  let difference = a.length ^ b.length;
+  for (let i = 0; i < Math.min(a.length, b.length); i += 1) difference |= a[i] ^ b[i];
+  return difference === 0;
 }
 
 function sync_(request) {

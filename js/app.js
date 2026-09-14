@@ -1424,13 +1424,20 @@ reviewModal.addEventListener("click", (event) => {
 });
 
 function setSyncStatus(state, detail = "") {
-  const labels = { local: "Somente local", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
+  const labels = { local: "Somente local", locked: "Configurar acesso", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
   syncStatus.className = `sync-status ${state}`;
   syncStatusText.textContent = labels[state] || labels.local;
   syncStatus.title = detail ? `${labels[state]} — ${detail}` : labels[state];
 }
 
-syncStatus.addEventListener("click", () => StudySync.run());
+syncStatus.addEventListener("click", () => {
+  if (!StudyApi.hasToken()) {
+    const token = window.prompt("Digite seu segredo pessoal do Study Tracker:");
+    if (!token?.trim()) return;
+    StudyApi.setToken(token);
+  }
+  StudySync.run();
+});
 
 StudySync.init({
   getState: () => ({ sessions, reviews, meta: syncMeta }),

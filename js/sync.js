@@ -39,7 +39,8 @@ const StudySync = (() => {
       setStatus("synced", new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (error) {
       console.error("Falha de sincronização:", error);
-      setStatus(navigator.onLine ? "error" : "offline");
+      const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));
+      setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline");
       clearTimeout(retryTimer);
       retryTimer = setTimeout(run, 30000);
     } finally {
