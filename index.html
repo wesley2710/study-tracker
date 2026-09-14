@@ -240,8 +240,26 @@
           </article>
         </section>
 
-
-
+        <section class="time-dashboard panel" id="banco-horas">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">Banco de horas</span>
+              <h3>Tempo e produtividade</h3>
+            </div>
+            <div class="time-filters">
+              <button class="filter-chip active" data-time-filter="today">Hoje</button>
+              <button class="filter-chip" data-time-filter="week">7 dias</button>
+              <button class="filter-chip" data-time-filter="month">30 dias</button>
+              <button class="filter-chip" data-time-filter="all">Tudo</button>
+            </div>
+          </div>
+          <div class="time-summary-grid">
+            <div class="time-summary-card"><span>Tempo estudado</span><strong id="periodStudyTime">0h 00m</strong></div>
+            <div class="time-summary-card"><span>Questões no período</span><strong id="periodQuestions">0</strong></div>
+            <div class="time-summary-card"><span>Questões por hora</span><strong id="questionsPerHour">0</strong></div>
+          </div>
+          <div class="subject-time-list" id="subjectTimeList"></div>
+        </section>
 
         <section class="smart-study-grid" id="recomendacao">
           <article class="panel smart-study-panel">
