@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Painel pessoal para acompanhamento de estudos, desempenho e revisões." />
+  <title>Study Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">ST</div>
+        <div>
+          <strong>Study Tracker</strong>
+          <span>Concurso</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-section="dashboard">
+          <span>⌂</span> Dashboard
+        </button>
+        <button class="nav-item" data-section="registrar">
+          <span>＋</span> Registrar estudo
+        </button>
+        <button class="nav-item" data-section="historico">
+          <span>▤</span> Histórico
+        </button>
+        <button class="nav-item" data-section="revisoes">
+          <span>↻</span> Revisões
+        </button>
+        <button class="nav-item" data-section="desempenho">
+          <span>◔</span> Desempenho
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <p>Versão 0.5</p>
+        <span>Etapa 5 — Dashboard inteligente e gráficos</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
+        <div>
+          <p class="eyebrow">Painel de estudos</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="secondary-button" id="newStudyButton">+ Novo estudo</button>
+          <div class="avatar">WM</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="hero">
+          <div>
+            <span class="pill">Visão geral</span>
+            <h2>Estude com dados, não com sensação.</h2>
+            <p>
+              Acompanhe questões, acertos, pontos fracos e revisões em um único painel.
+            </p>
+          </div>
+          <div class="hero-date">
+            <span>Hoje</span>
+            <strong id="todayDate">--/--/----</strong>
+          </div>
+        </div>
+
+        <section class="stats-grid">
+          <article class="stat-card">
+            <div class="stat-head">
+              <span>Total de questões</span>
+              <span class="stat-icon">✓</span>
+            </div>
+            <strong id="totalQuestions">0</strong>
+            <small id="questionsPeriod">Nenhum registro ainda</small>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-head">
+              <span>Média geral</span>
+              <span class="stat-icon">%</span>
+            </div>
+            <strong id="overallAccuracy">0%</strong>
+            <small class="positive" id="accuracyPeriod">Comece registrando uma sessão</small>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-head">
+              <span>Revisões para hoje</span>
+              <span class="stat-icon">↻</span>
+            </div>
+            <strong id="reviewsToday">0</strong>
+            <small>Revisões entram na Etapa 4</small>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-head">
+              <span>Assuntos dominados</span>
+              <span class="stat-icon">★</span>
+            </div>
+            <strong id="masteredTopics">0</strong>
+            <small id="masteredTopicsNote">Calculado pelos seus registros</small>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel performance-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Desempenho</span>
+                <h3>Resumo por matéria</h3>
+              </div>
+              <button class="text-button">Ver detalhes</button>
+            </div>
+
+            <div class="subject-list" id="subjectPerformance">
+              <div class="empty-state compact">
+                <strong>Nenhum dado ainda</strong>
+                <span>Registre suas primeiras sessões para ver o desempenho por matéria.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel review-panel" id="revisoes">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Hoje</span>
+                <h3>Fila de revisões</h3>
+              </div>
+              <span class="counter" id="reviewQueueCount">0</span>
+            </div>
+
+            <div class="review-toolbar">
+              <div class="review-filter-group">
+                <button class="filter-chip active" data-review-filter="today">Hoje</button>
+                <button class="filter-chip" data-review-filter="overdue">Atrasadas</button>
+                <button class="filter-chip" data-review-filter="upcoming">Próximas</button>
+                <button class="filter-chip" data-review-filter="all">Todas</button>
+              </div>
+            </div>
+
+            <div class="review-list" id="reviewList">
+              <div class="empty-state compact">
+                <strong>Nenhuma revisão agendada</strong>
+                <span>As revisões surgem automaticamente a partir dos seus estudos.</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="workspace-grid">
+          <article class="panel form-panel" id="registrar">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Novo registro</span>
+                <h3>Adicionar sessão de estudo</h3>
+              </div>
+            </div>
+
+            <form id="studyForm">
+              <div class="session-mode-row">
+                <label class="mode-option">
+                  <input type="radio" name="activityType" value="study" checked />
+                  <span>Estudo / Questões</span>
+                </label>
+                <label class="mode-option">
+                  <input type="radio" name="activityType" value="review" />
+                  <span>Revisão</span>
+                </label>
+              </div>
+
+              <div class="timer-panel">
+                <div class="timer-main">
+                  <span class="panel-kicker">Cronômetro da sessão</span>
+                  <strong id="timerDisplay">00:00:00</strong>
+                  <small id="timerStatus">Pronto para iniciar</small>
+                </div>
+                <div class="timer-actions">
+                  <button type="button" class="primary-button" id="timerStart">Iniciar</button>
+                  <button type="button" class="ghost-button hidden" id="timerPause">Pausar</button>
+                  <button type="button" class="ghost-button hidden" id="timerResume">Continuar</button>
+                  <button type="button" class="ghost-button hidden" id="timerFinish">Finalizar tempo</button>
+                  <button type="button" class="table-button danger hidden" id="timerCancel">Cancelar</button>
+                </div>
+                <div class="manual-duration">
+                  <span>Ou informe manualmente</span>
+                  <label><input type="number" min="0" name="hours" placeholder="0" /> h</label>
+                  <label><input type="number" min="0" max="59" name="minutes" placeholder="00" /> min</label>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  <span>Matéria</span>
+                  <input type="text" name="subject" id="subjectInput" list="subjectOptions" placeholder="Ex.: Direito Constitucional" autocomplete="off" />
+                  <datalist id="subjectOptions"></datalist>
+                </label>
+                <label>
+                  <span>Subtema</span>
+                  <input type="text" name="topic" id="topicInput" list="topicOptions" placeholder="Ex.: Controle de constitucionalidade" autocomplete="off" />
+                  <datalist id="topicOptions"></datalist>
+                </label>
+                <label>
+                  <span>Questões feitas</span>
+                  <input type="number" min="1" name="questions" placeholder="30" />
+                </label>
+                <label>
+                  <span>Acertos</span>
+                  <input type="number" min="0" name="correct" placeholder="21" />
+                </label>
+                <label>
+                  <span>Data do estudo</span>
+                  <input type="date" name="date" id="studyDate" />
+                </label>
+              </div>
+
+              <div class="form-footer">
+                <div class="preview">
+                  <span>Percentual estimado</span>
+                  <strong id="accuracyPreview">0%</strong>
+                  <small id="formHint">Preencha os dados da sessão.</small>
+                </div>
+                <div class="form-actions">
+                  <button class="ghost-button hidden" id="cancelEditButton" type="button">Cancelar edição</button>
+                  <button class="primary-button" id="saveStudyButton" type="submit">Salvar sessão</button>
+                </div>
+              </div>
+            </form>
+          </article>
+        </section>
+
+
+
+
+        <section class="smart-study-grid" id="recomendacao">
+          <article class="panel smart-study-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Prioridade inteligente</span>
+                <h3>O que devo estudar agora?</h3>
+              </div>
+              <span class="counter" id="smartStudyCount">0</span>
+            </div>
+            <div id="smartStudyList" class="smart-study-list">
+              <div class="empty-state compact">
+                <strong>Sem recomendações ainda</strong>
+                <span>Registre estudos e revisões para gerar prioridades.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel smart-insight-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Leitura rápida</span>
+                <h3>Resumo do momento</h3>
+              </div>
+            </div>
+            <div id="smartInsight" class="smart-insight">
+              <div class="empty-state compact">
+                <strong>Aguardando dados</strong>
+                <span>O sistema vai cruzar tempo, desempenho e revisão.</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="charts-grid" id="graficos">
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Evolução</span>
+                <h3>Desempenho ao longo do tempo</h3>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="performanceChart"></canvas></div>
+          </article>
+
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Distribuição</span>
+                <h3>Horas por matéria</h3>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="studyHoursChart"></canvas></div>
+          </article>
+
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Volume</span>
+                <h3>Questões por dia</h3>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="questionsChart"></canvas></div>
+          </article>
+
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Eficiência</span>
+                <h3>Tempo x desempenho</h3>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="efficiencyChart"></canvas></div>
+          </article>
+        </section>
+
+        <section class="reviews-workspace">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Agenda adaptativa</span>
+                <h3>Próximas revisões por subtema</h3>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Matéria</th>
+                    <th>Subtema</th>
+                    <th>Último desempenho</th>
+                    <th>Intervalo atual</th>
+                    <th>Próxima revisão</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="reviewScheduleBody">
+                  <tr class="empty-table-row">
+                    <td colspan="7">
+                      <div class="empty-state">
+                        <strong>Nenhuma revisão agendada</strong>
+                        <span>Cadastre sessões de estudo para criar a agenda automática.</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Histórico</span>
+                <h3>Revisões concluídas</h3>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Matéria</th>
+                    <th>Subtema</th>
+                    <th>Questões</th>
+                    <th>Acertos</th>
+                    <th>%</th>
+                    <th>Próximo intervalo</th>
+                  </tr>
+                </thead>
+                <tbody id="reviewHistoryBody">
+                  <tr class="empty-table-row">
+                    <td colspan="7">
+                      <div class="empty-state">
+                        <strong>Nenhuma revisão concluída</strong>
+                        <span>Quando você registrar uma revisão, ela aparecerá aqui.</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="analytics-grid" id="desempenho">
+          <article class="panel analytics-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Diagnóstico</span>
+                <h3>Pontos que exigem atenção</h3>
+              </div>
+              <span class="counter" id="weakTopicsCount">0</span>
+            </div>
+            <div id="weakTopicsList" class="diagnostic-list">
+              <div class="empty-state compact">
+                <strong>Sem diagnóstico ainda</strong>
+                <span>Registre mais sessões para identificar seus pontos fracos.</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel analytics-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Domínio</span>
+                <h3>Distribuição dos subtemas</h3>
+              </div>
+            </div>
+
+            <div class="mastery-summary">
+              <div class="mastery-box learning">
+                <span>Aprendizado</span>
+                <strong id="learningCount">0</strong>
+                <small>Desempenho ainda instável</small>
+              </div>
+              <div class="mastery-box consolidation">
+                <span>Consolidação</span>
+                <strong id="consolidationCount">0</strong>
+                <small>Bom avanço, ainda com oscilações</small>
+              </div>
+              <div class="mastery-box maintenance">
+                <span>Manutenção</span>
+                <strong id="maintenanceCount">0</strong>
+                <small>Domínio consistente</small>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel topic-analysis-panel">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">Análise por subtema</span>
+              <h3>Desempenho detalhado</h3>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Matéria</th>
+                  <th>Subtema</th>
+                  <th>Questões</th>
+                  <th>Acertos</th>
+                  <th>Tempo</th>
+                  <th>%</th>
+                  <th>Confiança</th>
+                  <th>Estado</th>
+                  <th>Prioridade</th>
+                </tr>
+              </thead>
+              <tbody id="topicAnalysisBody">
+                <tr class="empty-table-row">
+                  <td colspan="8">
+                    <div class="empty-state">
+                      <strong>Nenhum subtema analisado</strong>
+                      <span>Os dados aparecerão aqui conforme você registrar sessões.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel history-panel" id="historico">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">Registros recentes</span>
+              <h3>Histórico de estudos</h3>
+            </div>
+            <div class="table-actions">
+              <input id="searchInput" class="search-input" type="search" placeholder="Buscar matéria ou subtema..." />
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Matéria</th>
+                  <th>Subtema</th>
+                  <th>Questões</th>
+                  <th>Acertos</th>
+                  <th>Desempenho</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody">
+                <tr class="empty-table-row">
+                  <td colspan="9">
+                    <div class="empty-state">
+                      <strong>Nenhuma sessão registrada</strong>
+                      <span>Use o formulário acima para adicionar seu primeiro estudo.</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+
+  <div class="modal-backdrop hidden" id="reviewModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="panel-kicker">Registrar revisão</span>
+          <h3 id="reviewModalTitle">Revisão</h3>
+        </div>
+        <button class="icon-button" id="closeReviewModal" type="button">×</button>
+      </div>
+
+      <form id="reviewForm">
+        <input type="hidden" name="reviewKey" />
+        <div class="form-grid review-form-grid">
+          <label>
+            <span>Questões feitas</span>
+            <input type="number" min="1" name="questions" placeholder="20" />
+          </label>
+          <label>
+            <span>Acertos</span>
+            <input type="number" min="0" name="correct" placeholder="16" />
+          </label>
+          <label>
+            <span>Data da revisão</span>
+            <input type="date" name="date" id="reviewDate" />
+          </label>
+        </div>
+
+        <div class="review-result-preview">
+          <span>Resultado</span>
+          <strong id="reviewAccuracyPreview">0%</strong>
+          <small id="reviewNextIntervalPreview">Próximo intervalo será calculado pelo desempenho.</small>
+        </div>
+
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelReviewModal" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Concluir revisão</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Pronto.</div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/reviews.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
