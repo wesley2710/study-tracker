@@ -40,7 +40,8 @@ const StudySync = (() => {
     } catch (error) {
       console.error("Falha de sincronização:", error);
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));
-      setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline");
+      if (String(error.message).includes("UNAUTHORIZED")) StudyApi.clearToken();
+      setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline", authError ? "Segredo ausente ou incorreto" : "");
       clearTimeout(retryTimer);
       retryTimer = setTimeout(run, 30000);
     } finally {
