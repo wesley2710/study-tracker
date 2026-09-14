@@ -25,6 +25,7 @@ const questionsPeriodEl = document.querySelector("#questionsPeriod");
 const accuracyPeriodEl = document.querySelector("#accuracyPeriod");
 const masteredTopicsEl = document.querySelector("#masteredTopics");
 const masteredTopicsNoteEl = document.querySelector("#masteredTopicsNote");
+const reviewsTodayEl = document.querySelector("#reviewsToday");
 
 const weakTopicsCountEl = document.querySelector("#weakTopicsCount");
 const weakTopicsListEl = document.querySelector("#weakTopicsList");
