@@ -146,6 +146,7 @@ button { cursor: pointer; }
 .sync-status.synced .sync-dot { background:#22c55e; }
 .sync-status.offline .sync-dot, .sync-status.error .sync-dot { background:#ef4444; }
 .sync-status.locked .sync-dot { background:#8b5cf6; }
+.auth-note { margin:10px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
 @keyframes pulse { 50% { opacity:.35; } }
 @media (max-width: 640px) { .sync-status { padding:8px; } #syncStatusText { display:none; } }
 

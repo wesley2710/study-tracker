@@ -18,6 +18,10 @@ const topicOptions = document.querySelector("#topicOptions");
 const subjectPerformance = document.querySelector("#subjectPerformance");
 const syncStatus = document.querySelector("#syncStatus");
 const syncStatusText = document.querySelector("#syncStatusText");
+const authModal = document.querySelector("#authModal");
+const authForm = document.querySelector("#authForm");
+const closeAuthModal = document.querySelector("#closeAuthModal");
+const cancelAuthModal = document.querySelector("#cancelAuthModal");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -1432,12 +1436,29 @@ function setSyncStatus(state, detail = "") {
 
 syncStatus.addEventListener("click", () => {
   if (!StudyApi.hasToken()) {
-    const token = window.prompt("Digite seu segredo pessoal do Study Tracker:");
-    if (!token?.trim()) return;
-    StudyApi.setToken(token);
+    authModal.classList.remove("hidden");
+    window.setTimeout(() => authForm.elements.token.focus(), 50);
+    return;
   }
   StudySync.run();
 });
+
+function closeAuthModalNow() {
+  authModal.classList.add("hidden");
+  authForm.reset();
+}
+
+authForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const token = authForm.elements.token.value.trim();
+  if (!token) return;
+  StudyApi.setToken(token);
+  closeAuthModalNow();
+  StudySync.run();
+});
+closeAuthModal.addEventListener("click", closeAuthModalNow);
+cancelAuthModal.addEventListener("click", closeAuthModalNow);
+authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuthModalNow(); });
 
 StudySync.init({
   getState: () => ({ sessions, reviews, meta: syncMeta }),
