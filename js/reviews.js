@@ -1,46 +1,31 @@
 const ReviewEngine = {
-  intervals: [1, 3, 7, 15, 30, 60, 90, 120, 180],
+  intervals: [3, 7, 15, 30, 45, 60],
+  initialInterval: 3,
+  minimumQuestionsToAdvance: 20,
 
-  getBaseInterval(percentage) {
-    if (percentage < 50) return 1;
-    if (percentage < 60) return 3;
-    if (percentage < 70) return 7;
-    if (percentage < 80) return 15;
-    if (percentage < 90) return 30;
-    if (percentage < 95) return 60;
-    return 90;
+  getInitialInterval() {
+    return this.initialInterval;
   },
 
-  getNextInterval(percentage, previousInterval = null, streak = 0, questionCount = 20) {
-    let base = this.getBaseInterval(percentage);
+  getAdvanceInterval(previousInterval = null) {
+    const current = Number(previousInterval) || this.initialInterval;
+    if (current < 3) return 3;
+    if (current < 7) return 7;
+    if (current < 15) return 15;
+    if (current < 30) return 30;
+    if (current < 45) return 45;
+    if (current < 60) return 60;
+    return current + 30;
+  },
 
-    // A amostra limita saltos excessivos: 100% em poucas questões não equivale
-    // a uma revisão robusta com 20+ questões.
-    if (questionCount < 10) base = Math.min(base, 15);
-    else if (questionCount < 20) base = Math.min(base, 30);
-
-    if (percentage < 90) {
-      return base;
-    }
-
-    if (!previousInterval) {
-      return base;
-    }
-
-    // Progressão de manutenção após bom desempenho recorrente.
-    if (percentage >= 95 && streak >= 2 && questionCount >= 20) {
-      if (previousInterval >= 120) return 180;
-      if (previousInterval >= 90) return 120;
-      return 90;
-    }
-
-    if (percentage >= 90 && streak >= 2 && questionCount >= 20) {
-      if (previousInterval >= 90) return 120;
-      if (previousInterval >= 60) return 90;
-      return Math.max(base, previousInterval);
-    }
-
-    return Math.max(base, Math.min(previousInterval, 90));
+  getNextInterval(percentage, previousInterval = null, _streak = 0, questionCount = 0) {
+    const current = Number(previousInterval) || this.initialInterval;
+    const questions = Number(questionCount) || 0;
+    if (percentage < 60) return 3;
+    if (percentage < 70) return Math.min(current, 7);
+    if (percentage < 90) return current;
+    if (questions < this.minimumQuestionsToAdvance) return current;
+    return this.getAdvanceInterval(current);
   },
 
   addDays(isoDate, days) {

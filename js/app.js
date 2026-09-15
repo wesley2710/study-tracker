@@ -845,15 +845,15 @@ function buildReviewSchedule() {
     if (latestReview) {
       lastDate = latestReview.date;
       lastPercentage = (latestReview.correct / latestReview.questions) * 100;
-      previousInterval = latestReview.nextInterval || ReviewEngine.getBaseInterval(lastPercentage);
+      previousInterval = latestReview.nextInterval || ReviewEngine.getInitialInterval();
     }
 
     const streak = getReviewStreak(topic.subject, topic.topic);
     // Uma revisão concluída já possui o intervalo calculado. Renderizar o
     // dashboard nunca deve avançá-lo novamente; só uma nova revisão progride.
     const nextInterval = latestReview
-      ? (latestReview.nextInterval || ReviewEngine.getBaseInterval(lastPercentage))
-      : ReviewEngine.getBaseInterval(lastPercentage);
+      ? (latestReview.nextInterval || ReviewEngine.getInitialInterval())
+      : ReviewEngine.getInitialInterval();
 
     const nextDate = ReviewEngine.addDays(lastDate, nextInterval);
     const status = ReviewEngine.compareDate(nextDate);
