@@ -35,9 +35,31 @@ assert.equal(merge([{ id: "a", updatedAt: 2 }], [{ id: "a", updatedAt: 3, subjec
 assert.equal(merge([{ id: "a", updatedAt: 2 }], [], { a: 3 }).length, 0, "tombstone mais novo vence");
 assert.equal(merge([{ id: "a", updatedAt: 4 }], [], { a: 3 }).length, 1, "edição mais nova vence tombstone antigo");
 assert.equal(merge([{ id: "same", updatedAt: 1 }], [{ id: "same", updatedAt: 1 }], {}).length, 1, "id não duplica");
+assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /!StudyApi\.hasToken\(\).*setStatus\("locked"/, "segredo ausente não gera tentativa nem erro de console");
 
 const appSource = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 assert.match(appSource, /latestReview\.nextInterval \|\| ReviewEngine\.getBaseInterval/, "render usa intervalo persistido");
 assert.doesNotMatch(appSource, /latestReview\s*\?\s*ReviewEngine\.getNextInterval\(lastPercentage/, "render não progride revisão");
 
-console.log("OK: 17 verificações de revisão, merge, tombstones, duplicidade e regressão de renderização.");
+const catalogContext = {};
+vm.createContext(catalogContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/catalog.js"), "utf8")}\nthis.catalog = CatalogEngine;`, catalogContext);
+const catalogEngine = catalogContext.catalog;
+let idCounter = 0;
+const migrated = catalogEngine.migrate({
+  sessions: [{ id: "s1", subject: "Português", topic: "Crase", updatedAt: 1 }],
+  reviews: [{ id: "r1", subject: "Português", topic: "Crase", updatedAt: 1 }],
+  mocks: [{ id: "m1", subjectScores: JSON.stringify([{ subject: "Português", score: 9, maxScore: 10 }]), updatedAt: 1 }],
+  subjects: [], topics: []
+}, () => `id-${++idCounter}`, 100);
+assert.equal(migrated.subjects.length, 1, "migração cria uma matéria única");
+assert.equal(migrated.topics.length, 1, "migração cria um subtema único");
+assert.equal(migrated.sessions[0].subjectId, migrated.reviews[0].subjectId, "sessão e revisão compartilham subjectId");
+assert.equal(migrated.sessions[0].topicId, migrated.reviews[0].topicId, "sessão e revisão compartilham topicId");
+assert.equal(JSON.parse(migrated.mocks[0].subjectScores)[0].subjectId, migrated.subjects[0].id, "simulado é ligado ao catálogo");
+const migratedAgain = catalogEngine.migrate(migrated, () => `id-${++idCounter}`, 200);
+assert.equal(migratedAgain.subjects.length, 1, "nova migração não duplica matéria");
+assert.equal(migratedAgain.topics.length, 1, "nova migração não duplica subtema");
+assert.equal(migratedAgain.sessions[0].subjectId, migrated.sessions[0].subjectId, "IDs permanecem estáveis");
+
+console.log("OK: 26 verificações de revisão, merge, tombstones, catálogo, IDs e regressão de renderização.");

@@ -33,3 +33,26 @@ Google Sheets é a persistência principal; LocalStorage permanece como cache/fa
 ## Publicação
 
 O frontend está pronto para GitHub Pages. As instruções completas estão em `SETUP.md`.
+
+## Versão 1.1 — contexto de questões e simulados
+
+Esta versão adiciona dois módulos sem remover os recursos da Etapa 6:
+
+- **Contexto das questões**: `Durante o estudo`, `Bateria independente` e `Revisão programada`. Todas contam no volume geral; para diagnóstico de domínio, baterias independentes e revisões têm precedência quando existirem.
+- **Simulados**: registro de nome, data, nota geral (0–100) e notas opcionais por matéria. O gráfico permite alternar entre evolução da nota geral e evolução de cada matéria.
+- Os simulados usam LocalStorage como cache/fallback e uma nova aba `Mocks` no Google Sheets.
+- O backend migra cabeçalhos por nome de coluna para preservar registros existentes ao adicionar `questionContext`.
+
+Ao publicar esta versão, atualize também o `backend/Code.gs` no Google Apps Script e crie uma nova implantação/versão do Web App se necessário para que a sincronização de simulados chegue à planilha.
+
+### Fluxo unificado de revisão (V1.1)
+- Itens em **Revisões de hoje** ou **Atrasadas** abrem o mesmo formulário de sessão já em modo Revisão, com matéria e subtema preenchidos.
+- Ao salvar, questões, acertos e duração entram nas estatísticas gerais e no banco de horas.
+- A sessão fica vinculada à revisão por `reviewKey`; o resultado gera/atualiza o registro de revisão e calcula o próximo intervalo conforme desempenho, amostra e consistência.
+- A revisão concluída deixa de aparecer como hoje/atrasada porque a agenda passa a usar a nova data calculada.
+- Também é possível registrar manualmente uma sessão como Revisão; nesse caso a chave do tópico é criada automaticamente.
+
+
+## V1.1.1 — Catálogo estruturado
+
+Matérias e subtemas agora são cadastrados uma única vez e possuem IDs persistentes. Sessões e revisões guardam `subjectId`/`topicId`, os selects evitam variações de digitação e simulados reutilizam o catálogo de matérias. Renomear preserva vínculos; arquivar não apaga histórico. O backend sincroniza as abas `Subjects` e `Topics`.

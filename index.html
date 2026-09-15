@@ -37,11 +37,17 @@
         <button class="nav-item" data-section="desempenho">
           <span>◔</span> Desempenho
         </button>
+        <button class="nav-item" data-section="simulados">
+          <span>▦</span> Simulados
+        </button>
+        <button class="nav-item" data-section="catalogo">
+          <span>◫</span> Matérias e subtemas
+        </button>
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 0.6</p>
-        <span>Etapa 6 — Sincronização em nuvem</span>
+        <p>Versão 1.1</p>
+        <span>Contexto de questões + simulados</span>
       </div>
     </aside>
 
@@ -203,13 +209,13 @@
               <div class="form-grid">
                 <label>
                   <span>Matéria</span>
-                  <input type="text" name="subject" id="subjectInput" list="subjectOptions" placeholder="Ex.: Direito Constitucional" autocomplete="off" />
-                  <datalist id="subjectOptions"></datalist>
+                  <select name="subject" id="subjectInput" required><option value="">Selecione uma matéria</option></select>
+                  <small class="field-note">Cadastre matérias em “Matérias e subtemas”.</small>
                 </label>
                 <label>
                   <span>Subtema</span>
-                  <input type="text" name="topic" id="topicInput" list="topicOptions" placeholder="Ex.: Controle de constitucionalidade" autocomplete="off" />
-                  <datalist id="topicOptions"></datalist>
+                  <select name="topic" id="topicInput" required disabled><option value="">Selecione primeiro a matéria</option></select>
+                  <small class="field-note">A lista mostra apenas subtemas da matéria escolhida.</small>
                 </label>
                 <label>
                   <span>Questões feitas</span>
@@ -222,6 +228,14 @@
                 <label>
                   <span>Data do estudo</span>
                   <input type="date" name="date" id="studyDate" />
+                </label>
+                <label id="questionContextField">
+                  <span>Contexto das questões</span>
+                  <select name="questionContext" id="questionContext">
+                    <option value="study">Durante o estudo</option>
+                    <option value="independent">Bateria independente</option>
+                    <option value="review">Revisão programada</option>
+                  </select>
                 </label>
               </div>
 
@@ -259,6 +273,16 @@
             <div class="time-summary-card"><span>Questões por hora</span><strong id="questionsPerHour">0</strong></div>
           </div>
           <div class="subject-time-list" id="subjectTimeList"></div>
+        </section>
+
+        <section class="panel question-context-panel" id="contexto-questoes">
+          <div class="panel-header"><div><span class="panel-kicker">Qualidade da evidência</span><h3>Desempenho por contexto das questões</h3></div></div>
+          <div class="mock-summary-grid">
+            <div class="time-summary-card"><span>Durante o estudo</span><strong id="studyContextAccuracy">—</strong><small id="studyContextCount">0 questões</small></div>
+            <div class="time-summary-card"><span>Bateria independente</span><strong id="independentContextAccuracy">—</strong><small id="independentContextCount">0 questões</small></div>
+            <div class="time-summary-card"><span>Revisões</span><strong id="reviewContextAccuracy">—</strong><small id="reviewContextCount">0 questões</small></div>
+          </div>
+          <p class="context-note">Todas as questões contam no volume total. Baterias independentes e revisões oferecem evidência mais forte para o diagnóstico de domínio.</p>
         </section>
 
         <section class="smart-study-grid" id="recomendacao">
@@ -490,6 +514,68 @@
           </div>
         </section>
 
+        <section class="simulations-section" id="simulados">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker">Simulados</span>
+                <h3>Evolução dos simulados</h3>
+              </div>
+              <div class="simulation-filter">
+                <label>
+                  <span>Visualizar</span>
+                  <select id="mockChartFilter"><option value="overall">Nota geral</option></select>
+                </label>
+              </div>
+            </div>
+            <div class="mock-summary-grid">
+              <div class="time-summary-card"><span>Simulados realizados</span><strong id="mockCount">0</strong></div>
+              <div class="time-summary-card"><span>Última nota</span><strong id="mockLatestScore">—</strong></div>
+              <div class="time-summary-card"><span>Melhor nota</span><strong id="mockBestScore">—</strong></div>
+            </div>
+            <div class="chart-wrap mock-chart-wrap"><canvas id="mockEvolutionChart"></canvas></div>
+          </article>
+
+          <div class="simulation-grid">
+            <article class="panel">
+              <div class="panel-header"><div><span class="panel-kicker">Novo resultado</span><h3>Registrar simulado</h3></div></div>
+              <form id="mockForm">
+                <div class="form-grid">
+                  <label><span>Nome do simulado</span><input type="text" name="name" placeholder="Ex.: Simulado 01" required /></label>
+                  <label><span>Data</span><input type="date" name="date" id="mockDate" required /></label>
+                  <label><span>Nota obtida</span><input type="number" name="overallScore" min="0" step="0.01" placeholder="100" required /></label><label><span>Nota máxima</span><input type="number" name="overallMaxScore" min="0.01" step="0.01" placeholder="120" required /></label>
+                </div>
+                <div class="mock-subject-header"><div><span class="panel-kicker">Notas por matéria</span><small>Opcional. Adicione quantas matérias precisar.</small></div><button type="button" class="ghost-button" id="addMockSubject">+ Matéria</button></div>
+                <div id="mockSubjectRows" class="mock-subject-rows"></div>
+                <div class="form-actions mock-form-actions"><button class="ghost-button hidden" id="cancelMockEdit" type="button">Cancelar edição</button><button class="primary-button" id="saveMockButton" type="submit">Salvar simulado</button></div>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header"><div><span class="panel-kicker">Histórico</span><h3>Resultados dos simulados</h3></div></div>
+              <div class="table-wrap"><table><thead><tr><th>Data</th><th>Simulado</th><th>Nota geral</th><th>Matérias</th><th>Ações</th></tr></thead><tbody id="mockHistoryBody"><tr class="empty-table-row"><td colspan="5"><div class="empty-state"><strong>Nenhum simulado registrado</strong><span>Adicione seu primeiro resultado para acompanhar a evolução.</span></div></td></tr></tbody></table></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel catalog-panel" id="catalogo">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">Organização</span>
+              <h3>Matérias e subtemas</h3>
+            </div>
+            <span class="badge"><strong id="catalogSubjectCount">0</strong>&nbsp; matérias ativas</span>
+          </div>
+          <p class="catalog-help">Cadastre cada matéria uma vez e organize seus subtemas. Renomear ou arquivar mantém todo o histórico ligado aos mesmos identificadores.</p>
+          <form id="subjectCatalogForm" class="catalog-create-row">
+            <input type="text" name="name" maxlength="160" placeholder="Nome da matéria" required />
+            <button class="primary-button" type="submit">+ Adicionar matéria</button>
+          </form>
+          <div id="catalogList" class="catalog-list">
+            <div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os subtemas.</span></div>
+          </div>
+        </section>
+
         <section class="panel history-panel" id="historico">
           <div class="panel-header">
             <div>
@@ -510,6 +596,8 @@
                   <th>Subtema</th>
                   <th>Questões</th>
                   <th>Acertos</th>
+                  <th>Tempo</th>
+                  <th>Contexto</th>
                   <th>Desempenho</th>
                   <th>Status</th>
                   <th>Ações</th>
@@ -574,6 +662,22 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="catalogRenameModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="catalogRenameTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Cadastro</span><h3 id="catalogRenameTitle">Renomear</h3></div>
+        <button class="icon-button" id="closeCatalogRenameModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <form id="catalogRenameForm">
+        <label><span>Novo nome</span><input type="text" name="name" maxlength="160" required /></label>
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelCatalogRename" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Salvar nome</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast">Pronto.</div>
   <div class="modal-backdrop hidden" id="authModal">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -598,11 +702,12 @@
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="js/config.js?v=0.7.0"></script>
-  <script src="js/storage.js?v=0.7.0"></script>
-  <script src="js/api.js?v=0.7.0"></script>
-  <script src="js/sync.js?v=0.7.2"></script>
-  <script src="js/reviews.js?v=0.7.0"></script>
-  <script src="js/app.js?v=0.7.1"></script>
+  <script src="js/config.js?v=1.1.2"></script>
+  <script src="js/storage.js?v=1.1.2"></script>
+  <script src="js/api.js?v=1.1.2"></script>
+  <script src="js/sync.js?v=1.1.2"></script>
+  <script src="js/reviews.js?v=1.1.2"></script>
+  <script src="js/catalog.js?v=1.1.2"></script>
+  <script src="js/app.js?v=1.1.2"></script>
 </body>
 </html>

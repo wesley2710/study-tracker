@@ -1,12 +1,18 @@
 const SHEETS = {
   sessions: {
     name: 'Sessions',
-    headers: ['id', 'subject', 'topic', 'questions', 'correct', 'date', 'activityType', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'subjectId', 'topicId', 'subject', 'topic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
   },
   reviews: {
     name: 'Reviews',
-    headers: ['id', 'sessionId', 'subject', 'topic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'createdAt', 'updatedAt', 'deletedAt']
-  }
+    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subject', 'topic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'createdAt', 'updatedAt', 'deletedAt']
+  },
+  mocks: {
+    name: 'Mocks',
+    headers: ['id', 'name', 'date', 'overallScore', 'overallMaxScore', 'subjectScores', 'createdAt', 'updatedAt', 'deletedAt']
+  },
+  subjects: { name: 'Subjects', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
+  topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] }
 };
 
 function doGet(e) {
@@ -58,8 +64,14 @@ function sync_(request) {
   try {
     applyTombstones_('sessions', request.sessionTombstones || {});
     applyTombstones_('reviews', request.reviewTombstones || {});
+    applyTombstones_('mocks', request.mockTombstones || {});
+    applyTombstones_('subjects', request.subjectTombstones || {});
+    applyTombstones_('topics', request.topicTombstones || {});
     upsertMany_('sessions', request.sessions || []);
     upsertMany_('reviews', request.reviews || []);
+    upsertMany_('mocks', request.mocks || []);
+    upsertMany_('subjects', request.subjects || []);
+    upsertMany_('topics', request.topics || []);
     return getAll_();
   } finally {
     lock.releaseLock();
@@ -67,7 +79,7 @@ function sync_(request) {
 }
 
 function getAll_() {
-  return { sessions: read_('sessions', false), reviews: read_('reviews', false), serverTime: Date.now() };
+  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), serverTime: Date.now() };
 }
 
 function sheet_(type) {
@@ -76,8 +88,21 @@ function sheet_(type) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(spec.name);
   if (!sheet) sheet = spreadsheet.insertSheet(spec.name);
-  const firstRow = sheet.getRange(1, 1, 1, spec.headers.length).getValues()[0];
-  if (firstRow.join('|') !== spec.headers.join('|')) sheet.getRange(1, 1, 1, spec.headers.length).setValues([spec.headers]);
+  const currentLastColumn = Math.max(sheet.getLastColumn(), 1);
+  const currentHeaders = sheet.getRange(1, 1, 1, currentLastColumn).getValues()[0].map(String);
+  if (currentHeaders.join('|') !== spec.headers.join('|')) {
+    // Migração por nome de coluna: preserva dados existentes quando novos campos são adicionados.
+    const rowCount = Math.max(sheet.getLastRow() - 1, 0);
+    const oldRows = rowCount ? sheet.getRange(2, 1, rowCount, currentLastColumn).getValues() : [];
+    const oldIndex = {};
+    currentHeaders.forEach(function(header, index) { if (header) oldIndex[header] = index; });
+    const migratedRows = oldRows.map(function(row) {
+      return spec.headers.map(function(header) { return oldIndex[header] == null ? '' : row[oldIndex[header]]; });
+    });
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, spec.headers.length).setValues([spec.headers]);
+    if (migratedRows.length) sheet.getRange(2, 1, migratedRows.length, spec.headers.length).setValues(migratedRows);
+  }
   sheet.setFrozenRows(1);
   return sheet;
 }
@@ -90,7 +115,7 @@ function read_(type, includeDeleted) {
     .map(function(row) {
       const item = {};
       spec.headers.forEach(function(header, index) { item[header] = row[index]; });
-      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval'].forEach(function(key) {
+      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore'].forEach(function(key) {
         if (item[key] !== '') item[key] = Number(item[key]);
       });
       return item;

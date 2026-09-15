@@ -25,6 +25,7 @@ const StudySync = (() => {
 
   async function run() {
     if (!adapter || !StudyApi.isConfigured()) { setStatus("local", "Configure a nuvem"); return; }
+    if (!StudyApi.hasToken()) { setStatus("locked", "Segredo ausente ou incorreto"); return; }
     if (running) { queued = true; return; }
     running = true;
     setStatus("syncing");
@@ -33,17 +34,22 @@ const StudySync = (() => {
       const remote = await StudyApi.getAll();
       const sessions = mergeRecords(local.sessions, remote.sessions || [], local.meta.sessionTombstones);
       const reviews = mergeRecords(local.reviews, remote.reviews || [], local.meta.reviewTombstones);
-      const result = await StudyApi.sync({ sessions, reviews, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones });
-      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, lastSyncAt: Date.now() };
-      adapter.applyState({ sessions: mergeRecords(sessions, result.sessions || [], {}), reviews: mergeRecords(reviews, result.reviews || [], {}), meta: nextMeta });
+      const mocks = mergeRecords(local.mocks || [], remote.mocks || [], local.meta.mockTombstones || {});
+      const subjects = mergeRecords(local.subjects || [], remote.subjects || [], local.meta.subjectTombstones || {});
+      const topics = mergeRecords(local.topics || [], remote.topics || [], local.meta.topicTombstones || {});
+      const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {} });
+      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, lastSyncAt: Date.now() };
+      adapter.applyState({ sessions: mergeRecords(sessions, result.sessions || [], {}), reviews: mergeRecords(reviews, result.reviews || [], {}), mocks: mergeRecords(mocks, result.mocks || [], {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), meta: nextMeta });
       setStatus("synced", new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (error) {
-      console.error("Falha de sincronização:", error);
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));
       if (String(error.message).includes("UNAUTHORIZED")) StudyApi.clearToken();
+      if (!authError) console.error("Falha de sincronização:", error);
       setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline", authError ? "Segredo ausente ou incorreto" : "");
-      clearTimeout(retryTimer);
-      retryTimer = setTimeout(run, 30000);
+      if (!authError) {
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(run, 30000);
+      }
     } finally {
       running = false;
       if (queued) { queued = false; run(); }

@@ -22,7 +22,6 @@ const StudyStorage = {
   }
 };
 
-
 const REVIEW_STORAGE_KEY = "studyTracker.reviews.v1";
 
 const ReviewStorage = {
@@ -77,11 +76,14 @@ const SyncStorage = {
       return {
         sessionTombstones: value.sessionTombstones || {},
         reviewTombstones: value.reviewTombstones || {},
+        mockTombstones: value.mockTombstones || {},
+        subjectTombstones: value.subjectTombstones || {},
+        topicTombstones: value.topicTombstones || {},
         lastSyncAt: value.lastSyncAt || null
       };
     } catch (error) {
       console.error("Erro ao carregar metadados de sincronização:", error);
-      return { sessionTombstones: {}, reviewTombstones: {}, lastSyncAt: null };
+      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, lastSyncAt: null };
     }
   },
   save(value) {
@@ -93,4 +95,34 @@ const AuthStorage = {
   load() { return localStorage.getItem(AUTH_TOKEN_KEY) || ""; },
   save(token) { localStorage.setItem(AUTH_TOKEN_KEY, String(token || "").trim()); },
   clear() { localStorage.removeItem(AUTH_TOKEN_KEY); }
+};
+
+
+const MOCK_STORAGE_KEY = "studyTracker.mocks.v1";
+
+const MockStorage = {
+  load() {
+    try {
+      const raw = localStorage.getItem(MOCK_STORAGE_KEY);
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error("Erro ao carregar simulados:", error);
+      return [];
+    }
+  },
+  save(mocks) { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(mocks)); },
+  clear() { localStorage.removeItem(MOCK_STORAGE_KEY); }
+};
+
+
+const CATALOG_STORAGE_KEY = "studyTracker.catalog.v1";
+const CatalogStorage = {
+  load() {
+    try { const data = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "{}"); return { subjects: Array.isArray(data.subjects) ? data.subjects : [], topics: Array.isArray(data.topics) ? data.topics : [] }; }
+    catch (error) { console.error("Erro ao carregar catálogo:", error); return { subjects: [], topics: [] }; }
+  },
+  save(catalog) { localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog)); },
+  clear() { localStorage.removeItem(CATALOG_STORAGE_KEY); }
 };

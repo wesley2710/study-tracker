@@ -13,8 +13,11 @@ const saveStudyButton = document.querySelector("#saveStudyButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
 const formHint = document.querySelector("#formHint");
 const studyDate = document.querySelector("#studyDate");
-const subjectOptions = document.querySelector("#subjectOptions");
-const topicOptions = document.querySelector("#topicOptions");
+const subjectInput = document.querySelector("#subjectInput");
+const topicInput = document.querySelector("#topicInput");
+const subjectCatalogForm = document.querySelector("#subjectCatalogForm");
+const catalogList = document.querySelector("#catalogList");
+const catalogSubjectCount = document.querySelector("#catalogSubjectCount");
 const subjectPerformance = document.querySelector("#subjectPerformance");
 const syncStatus = document.querySelector("#syncStatus");
 const syncStatusText = document.querySelector("#syncStatusText");
@@ -22,6 +25,11 @@ const authModal = document.querySelector("#authModal");
 const authForm = document.querySelector("#authForm");
 const closeAuthModal = document.querySelector("#closeAuthModal");
 const cancelAuthModal = document.querySelector("#cancelAuthModal");
+const catalogRenameModal = document.querySelector("#catalogRenameModal");
+const catalogRenameForm = document.querySelector("#catalogRenameForm");
+const catalogRenameTitle = document.querySelector("#catalogRenameTitle");
+const closeCatalogRenameModal = document.querySelector("#closeCatalogRenameModal");
+const cancelCatalogRename = document.querySelector("#cancelCatalogRename");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -72,11 +80,31 @@ const performanceChartEl = document.querySelector("#performanceChart");
 const studyHoursChartEl = document.querySelector("#studyHoursChart");
 const questionsChartEl = document.querySelector("#questionsChart");
 const efficiencyChartEl = document.querySelector("#efficiencyChart");
+const questionContextEl = document.querySelector("#questionContext");
+const mockForm = document.querySelector("#mockForm");
+const mockDate = document.querySelector("#mockDate");
+const mockSubjectRows = document.querySelector("#mockSubjectRows");
+const addMockSubjectButton = document.querySelector("#addMockSubject");
+const cancelMockEditButton = document.querySelector("#cancelMockEdit");
+const saveMockButton = document.querySelector("#saveMockButton");
+const mockHistoryBody = document.querySelector("#mockHistoryBody");
+const mockChartFilter = document.querySelector("#mockChartFilter");
+const mockEvolutionChartEl = document.querySelector("#mockEvolutionChart");
+const mockCountEl = document.querySelector("#mockCount");
+const mockLatestScoreEl = document.querySelector("#mockLatestScore");
+const mockBestScoreEl = document.querySelector("#mockBestScore");
+const studyContextAccuracyEl = document.querySelector("#studyContextAccuracy");
+const independentContextAccuracyEl = document.querySelector("#independentContextAccuracy");
+const reviewContextAccuracyEl = document.querySelector("#reviewContextAccuracy");
+const studyContextCountEl = document.querySelector("#studyContextCount");
+const independentContextCountEl = document.querySelector("#independentContextCount");
+const reviewContextCountEl = document.querySelector("#reviewContextCount");
 
 let performanceChartInstance = null;
 let studyHoursChartInstance = null;
 let questionsChartInstance = null;
 let efficiencyChartInstance = null;
+let mockEvolutionChartInstance = null;
 
 
 
@@ -85,11 +113,30 @@ let efficiencyChartInstance = null;
 let sessions = StudyStorage.load();
 let editingId = null;
 let reviews = ReviewStorage.load();
+let scheduledReviewKey = null;
+let mocks = MockStorage.load();
+let catalog = CatalogStorage.load();
+let editingMockId = null;
+let pendingCatalogRename = null;
 let syncMeta = SyncStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
+
+function migrateLegacyCatalogState() {
+  const migrated = CatalogEngine.migrate({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics }, createId);
+  sessions = migrated.sessions;
+  reviews = migrated.reviews;
+  mocks = migrated.mocks;
+  catalog = { subjects: migrated.subjects, topics: migrated.topics };
+  if (migrated.changed) {
+    StudyStorage.save(sessions);
+    ReviewStorage.save(reviews);
+    MockStorage.save(mocks);
+    CatalogStorage.save(catalog);
+  }
+}
 
 function createId() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -137,18 +184,25 @@ function formatToday() {
 }
 
 function getFormValues() {
-  const subject = studyForm.elements.subject.value.trim();
-  const topic = studyForm.elements.topic.value.trim();
+  const subjectId = studyForm.elements.subject.value;
+  const topicId = studyForm.elements.topic.value;
+  const subjectRecord = catalog.subjects.find((item) => item.id === subjectId);
+  const topicRecord = catalog.topics.find((item) => item.id === topicId && item.subjectId === subjectId);
+  const subject = subjectRecord?.name || "";
+  const topic = topicRecord?.name || "";
   const questions = Number(studyForm.elements.questions.value);
   const correct = Number(studyForm.elements.correct.value);
   const date = studyForm.elements.date.value;
   const activityType = studyForm.elements.activityType.value;
+  const questionContext = activityType === "review" ? "review" : (studyForm.elements.questionContext?.value || "study");
   const hours = Number(studyForm.elements.hours.value || 0);
   const minutes = Number(studyForm.elements.minutes.value || 0);
   const manualDurationSeconds = (hours * 3600) + (minutes * 60);
   const durationSeconds = manualDurationSeconds || getTimerElapsedSeconds();
 
-  return { subject, topic, questions, correct, date, activityType, durationSeconds };
+  const reviewKey = activityType === "review" ? (scheduledReviewKey || getTopicKey(subject, topic)) : null;
+
+  return { subjectId, topicId, subject, topic, questions, correct, date, activityType, questionContext, reviewKey, durationSeconds };
 }
 
 function validateSession(data) {
@@ -235,6 +289,7 @@ function renderHistory() {
         <td>${formatNumber(session.questions)}</td>
         <td>${formatNumber(session.correct)}</td>
         <td>${formatDuration(session.durationSeconds || 0)}</td>
+        <td><span class="context-badge">${getQuestionContextLabel(session)}</span></td>
         <td><strong>${formatPercent(percentage)}</strong></td>
         <td><span class="badge ${status.className}">${status.label}</span></td>
         <td>
@@ -334,18 +389,17 @@ function renderSubjectPerformance() {
   `).join("");
 }
 
-function renderDatalists() {
-  const subjects = [...new Set(sessions.map((s) => s.subject))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  subjectOptions.innerHTML = subjects.map((subject) => `<option value="${escapeAttribute(subject)}"></option>`).join("");
-
-  const selectedSubject = studyForm.elements.subject.value.trim().toLowerCase();
-  const topics = [...new Set(
-    sessions
-      .filter((s) => !selectedSubject || s.subject.toLowerCase() === selectedSubject)
-      .map((s) => s.topic)
-  )].sort((a, b) => a.localeCompare(b, "pt-BR"));
-
-  topicOptions.innerHTML = topics.map((topic) => `<option value="${escapeAttribute(topic)}"></option>`).join("");
+function renderDatalists(selectedSubjectId = null, selectedTopicId = null) {
+  const currentSubject = selectedSubjectId ?? subjectInput.value;
+  const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  subjectInput.innerHTML = `<option value="">Selecione uma matéria</option>${activeSubjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
+  if (activeSubjects.some((item) => item.id === currentSubject)) subjectInput.value = currentSubject;
+  const subjectId = subjectInput.value;
+  const currentTopic = selectedTopicId ?? topicInput.value;
+  const activeTopics = catalog.topics.filter((item) => !item.archived && item.subjectId === subjectId).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  topicInput.disabled = !subjectId;
+  topicInput.innerHTML = subjectId ? `<option value="">Selecione um subtema</option>${activeTopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro a matéria</option>`;
+  if (activeTopics.some((item) => item.id === currentTopic)) topicInput.value = currentTopic;
 }
 
 
@@ -806,6 +860,8 @@ function buildReviewSchedule() {
 
     return {
       key: getTopicKey(topic.subject, topic.topic),
+      subjectId: topic.subjectId || null,
+      topicId: topic.topicId || null,
       subject: topic.subject,
       topic: topic.topic,
       lastDate,
@@ -1000,6 +1056,9 @@ function saveReviewResult(event) {
   reviews.push({
     id: reviewId,
     sessionId,
+    reviewKey,
+    subjectId: catalog.subjects.find((x) => x.name === subject)?.id || null,
+    topicId: catalog.topics.find((x) => x.name === topic && x.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id || null,
     subject,
     topic,
     questions,
@@ -1014,12 +1073,16 @@ function saveReviewResult(event) {
   // Toda revisão também é atividade real e entra nas estatísticas gerais.
   sessions.push({
     id: sessionId,
+    subjectId: catalog.subjects.find((x) => x.name === subject)?.id || null,
+    topicId: catalog.topics.find((x) => x.name === topic && x.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id || null,
     subject,
     topic,
+    reviewKey,
     questions,
     correct,
     date,
     activityType: "review",
+    questionContext: "review",
     durationSeconds: 0,
     createdAt: now,
     updatedAt: now
@@ -1039,11 +1102,16 @@ function aggregateTopics() {
   sessions.forEach((session) => {
     const key = `${session.subject}|||${session.topic}`;
     const current = topicMap.get(key) || {
+      subjectId: session.subjectId || null,
+      topicId: session.topicId || null,
       subject: session.subject,
       topic: session.topic,
       questions: 0,
       correct: 0,
       sessions: 0,
+      diagnosticQuestions: 0,
+      diagnosticCorrect: 0,
+      diagnosticSessions: 0,
       latestDate: session.date,
       percentages: []
     };
@@ -1052,6 +1120,12 @@ function aggregateTopics() {
     current.correct += session.correct;
     current.sessions += 1;
     current.percentages.push((session.correct / session.questions) * 100);
+    const context = session.questionContext || (session.activityType === "review" ? "review" : "study");
+    if (context === "independent" || context === "review") {
+      current.diagnosticQuestions += session.questions;
+      current.diagnosticCorrect += session.correct;
+      current.diagnosticSessions += 1;
+    }
 
     if (session.date > current.latestDate) {
       current.latestDate = session.date;
@@ -1061,10 +1135,13 @@ function aggregateTopics() {
   });
 
   return [...topicMap.values()].map((item) => {
-    const percentage = item.questions ? (item.correct / item.questions) * 100 : 0;
-    const confidence = getConfidence(item.questions, item.sessions);
-    const mastery = getMasteryState(percentage, confidence, item.questions);
-    const priorityScore = getPriorityScore(percentage, confidence, item.questions);
+    const evidenceQuestions = item.diagnosticQuestions || item.questions;
+    const evidenceCorrect = item.diagnosticQuestions ? item.diagnosticCorrect : item.correct;
+    const evidenceSessions = item.diagnosticQuestions ? item.diagnosticSessions : item.sessions;
+    const percentage = evidenceQuestions ? (evidenceCorrect / evidenceQuestions) * 100 : 0;
+    const confidence = getConfidence(evidenceQuestions, evidenceSessions);
+    const mastery = getMasteryState(percentage, confidence, evidenceQuestions);
+    const priorityScore = getPriorityScore(percentage, confidence, evidenceQuestions);
 
     return {
       ...item,
@@ -1186,6 +1263,236 @@ function renderTopicAnalytics() {
   }).join("");
 }
 
+
+function renderQuestionContextStats() {
+  const groups = { study: {q:0,c:0}, independent: {q:0,c:0}, review: {q:0,c:0} };
+  sessions.forEach((session) => {
+    const key = session.questionContext || (session.activityType === "review" ? "review" : "study");
+    const group = groups[key] || groups.study;
+    group.q += Number(session.questions || 0); group.c += Number(session.correct || 0);
+  });
+  const apply = (group, accuracyEl, countEl) => { accuracyEl.textContent = group.q ? formatPercent((group.c/group.q)*100) : "—"; countEl.textContent = `${formatNumber(group.q)} questões`; };
+  apply(groups.study, studyContextAccuracyEl, studyContextCountEl);
+  apply(groups.independent, independentContextAccuracyEl, independentContextCountEl);
+  apply(groups.review, reviewContextAccuracyEl, reviewContextCountEl);
+}
+
+function getQuestionContextLabel(session) {
+  const context = session.questionContext || (session.activityType === "review" ? "review" : "study");
+  return { study: "Durante o estudo", independent: "Bateria independente", review: "Revisão" }[context] || "Durante o estudo";
+}
+
+function syncQuestionContextMode() {
+  if (!questionContextEl) return;
+  const isReview = studyForm.elements.activityType.value === "review";
+  if (isReview) questionContextEl.value = "review";
+  questionContextEl.disabled = isReview;
+}
+
+function normalizeSubjectScores(value) {
+  let items = value;
+  if (!Array.isArray(items)) {
+    if (!items) return [];
+    try { items = JSON.parse(items); } catch { return []; }
+  }
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ...item,
+    score: Number(item.score),
+    maxScore: Number(item.maxScore || 100)
+  })).filter((item) => item.subject && Number.isFinite(item.score) && Number.isFinite(item.maxScore) && item.maxScore > 0);
+}
+
+function scorePercentage(score, maxScore) {
+  const obtained = Number(score);
+  const maximum = Number(maxScore);
+  return Number.isFinite(obtained) && Number.isFinite(maximum) && maximum > 0 ? (obtained / maximum) * 100 : 0;
+}
+
+function formatScoreValue(value) {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function formatScoreWithPercentage(score, maxScore) {
+  return `${formatScoreValue(score)} / ${formatScoreValue(maxScore)} (${formatPercent(scorePercentage(score, maxScore))})`;
+}
+
+function addMockSubjectRow(subject = "", score = "", maxScore = "", subjectId = "") {
+  const row = document.createElement("div"); row.className = "mock-subject-row";
+  const subjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const resolvedId = subjectId || subjects.find((item) => item.name === subject)?.id || "";
+  row.innerHTML = `<select class="mock-subject-name"><option value="">Matéria</option>${subjects.map((item) => `<option value="${escapeAttribute(item.id)}" ${item.id === resolvedId ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}</select><input type="number" class="mock-subject-score" min="0" step="0.01" placeholder="Obtida" value="${escapeAttribute(String(score))}" /><input type="number" class="mock-subject-max-score" min="0.01" step="0.01" placeholder="Máxima" value="${escapeAttribute(String(maxScore))}" /><button type="button" class="table-button danger mock-remove-subject">Remover</button>`;
+  mockSubjectRows.appendChild(row);
+}
+
+function getMockFormValues() {
+  const subjectScores = [...mockSubjectRows.querySelectorAll(".mock-subject-row")].map((row) => {
+    const subjectId = row.querySelector(".mock-subject-name").value;
+    return { subjectId, subject: catalog.subjects.find((item) => item.id === subjectId)?.name || "",
+    score: Number(row.querySelector(".mock-subject-score").value),
+    maxScore: Number(row.querySelector(".mock-subject-max-score").value) };
+  }).filter((item) => item.subject || Number.isFinite(item.score) || Number.isFinite(item.maxScore));
+  return { name: mockForm.elements.name.value.trim(), date: mockForm.elements.date.value, overallScore: Number(mockForm.elements.overallScore.value), overallMaxScore: Number(mockForm.elements.overallMaxScore.value), subjectScores };
+}
+
+function resetMockForm() {
+  editingMockId = null;
+  mockForm.reset();
+  mockDate.value = toISODate();
+  mockSubjectRows.innerHTML = "";
+  addMockSubjectRow();
+  saveMockButton.textContent = "Salvar simulado";
+  cancelMockEditButton.classList.add("hidden");
+}
+
+function renderMockFilter() {
+  const current = mockChartFilter.value || "overall";
+  const subjects = [...new Set(mocks.flatMap((mock) => normalizeSubjectScores(mock.subjectScores).map((item) => item.subject)))].sort((a,b) => a.localeCompare(b, "pt-BR"));
+  mockChartFilter.innerHTML = `<option value="overall">Nota geral</option>${subjects.map((subject) => `<option value="${escapeAttribute(subject)}">${escapeHtml(subject)}</option>`).join("")}`;
+  if (["overall", ...subjects].includes(current)) mockChartFilter.value = current;
+}
+
+function renderMockSubjectOptions() {
+  const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  mockSubjectRows.querySelectorAll(".mock-subject-name").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = `<option value="">Matéria</option>${activeSubjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
+    if (activeSubjects.some((item) => item.id === current)) select.value = current;
+  });
+}
+
+function renderMockChart() {
+  if (typeof Chart === "undefined") return;
+  const filter = mockChartFilter.value || "overall";
+  const ordered = [...mocks].sort((a,b) => a.date.localeCompare(b.date) || Number(a.createdAt)-Number(b.createdAt));
+  const points = ordered.map((mock) => {
+    if (filter === "overall") {
+      const maxScore = Number(mock.overallMaxScore || 100);
+      return { label: formatDate(mock.date), value: scorePercentage(mock.overallScore, maxScore), score: Number(mock.overallScore), maxScore, name: mock.name };
+    }
+    const found = normalizeSubjectScores(mock.subjectScores).find((item) => item.subject === filter);
+    return found ? { label: formatDate(mock.date), value: scorePercentage(found.score, found.maxScore), score: found.score, maxScore: found.maxScore, name: mock.name } : null;
+  }).filter(Boolean);
+  mockEvolutionChartInstance = destroyChart(mockEvolutionChartInstance);
+  mockEvolutionChartInstance = new Chart(mockEvolutionChartEl, {
+    type: "line",
+    data: { labels: points.map((p) => p.label), datasets: [{ label: filter === "overall" ? "Aproveitamento geral" : `Aproveitamento — ${filter}`, data: points.map((p) => p.value), tension: .3, spanGaps: true }] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, ticks: { callback: (value) => `${value}%` } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label(context) { const p = points[context.dataIndex]; return `${p.name}: ${formatScoreWithPercentage(p.score, p.maxScore)}`; } } } } }
+  });
+}
+
+function renderMocks() {
+  if (!mockForm) return;
+  renderMockSubjectOptions();
+  renderMockFilter();
+  const ordered = [...mocks].sort((a,b) => b.date.localeCompare(a.date) || Number(b.createdAt)-Number(a.createdAt));
+  mockCountEl.textContent = formatNumber(mocks.length);
+  mockLatestScoreEl.textContent = ordered.length ? formatScoreWithPercentage(ordered[0].overallScore, ordered[0].overallMaxScore || 100) : "—";
+  const best = ordered.length ? [...ordered].sort((a,b) => scorePercentage(b.overallScore, b.overallMaxScore || 100) - scorePercentage(a.overallScore, a.overallMaxScore || 100))[0] : null;
+  mockBestScoreEl.textContent = best ? formatScoreWithPercentage(best.overallScore, best.overallMaxScore || 100) : "—";
+  if (!ordered.length) {
+    mockHistoryBody.innerHTML = `<tr class="empty-table-row"><td colspan="5"><div class="empty-state"><strong>Nenhum simulado registrado</strong><span>Adicione seu primeiro resultado para acompanhar a evolução.</span></div></td></tr>`;
+  } else {
+    mockHistoryBody.innerHTML = ordered.map((mock) => {
+      const scores = normalizeSubjectScores(mock.subjectScores);
+      const maxScore = Number(mock.overallMaxScore || 100);
+      const subjectSummary = scores.length ? scores.map((item) => `${escapeHtml(item.subject)}: ${escapeHtml(formatScoreWithPercentage(item.score, item.maxScore))}`).join("<br>") : "—";
+      return `<tr><td>${formatDate(mock.date)}</td><td>${escapeHtml(mock.name)}</td><td><strong>${escapeHtml(formatScoreWithPercentage(mock.overallScore, maxScore))}</strong></td><td>${subjectSummary}</td><td><div class="row-actions"><button class="table-button" data-mock-action="edit" data-id="${mock.id}">Editar</button><button class="table-button danger" data-mock-action="delete" data-id="${mock.id}">Excluir</button></div></td></tr>`;
+    }).join("");
+  }
+  renderMockChart();
+}
+
+function editMock(id) {
+  const mock = mocks.find((item) => item.id === id); if (!mock) return;
+  editingMockId = id;
+  mockForm.elements.name.value = mock.name;
+  mockForm.elements.date.value = mock.date;
+  mockForm.elements.overallScore.value = mock.overallScore;
+  mockForm.elements.overallMaxScore.value = mock.overallMaxScore || 100;
+  mockSubjectRows.innerHTML = "";
+  const scores = normalizeSubjectScores(mock.subjectScores);
+  (scores.length ? scores : [{subject:"",score:"",maxScore:""}]).forEach((item) => addMockSubjectRow(item.subject, item.score, item.maxScore, item.subjectId || ""));
+  saveMockButton.textContent = "Atualizar simulado";
+  cancelMockEditButton.classList.remove("hidden");
+  document.getElementById("simulados").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function deleteMock(id) {
+  const mock = mocks.find((item) => item.id === id); if (!mock) return;
+  if (!window.confirm(`Excluir o simulado "${mock.name}"?`)) return;
+  const deletedAt = Date.now();
+  syncMeta.mockTombstones = syncMeta.mockTombstones || {};
+  syncMeta.mockTombstones[id] = deletedAt;
+  mocks = mocks.filter((item) => item.id !== id);
+  MockStorage.save(mocks); SyncStorage.save(syncMeta); renderAll(); StudySync.run(); showToast("Simulado excluído.", "success");
+}
+
+function normalizeCatalogName(value) { return CatalogEngine.normalizeName(value); }
+function renderCatalog() {
+  if (!catalogList) return;
+  const subjects = [...catalog.subjects].filter((x) => !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  catalogSubjectCount.textContent = subjects.length;
+  if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os subtemas.</span></div>`; return; }
+  catalogList.innerHTML = subjects.map((subject) => {
+    const topics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+    return `<div class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}"><div class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} subtema${topics.length===1?"":"s"}</small></div><div class="catalog-actions"><button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></div><div class="catalog-topics">${topics.map((topic)=>`<div class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}"><span>${escapeHtml(topic.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">Nenhum subtema ainda.</small>`}</div><form class="topic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema" required /><button class="ghost-button" type="submit">+ Subtema</button></form></div>`;
+  }).join("");
+}
+function catalogNameExists(items, name, predicate = () => true, exceptId = null) { const n=normalizeCatalogName(name).toLocaleLowerCase("pt-BR"); return items.some((x)=>x.id!==exceptId && predicate(x) && !x.archived && normalizeCatalogName(x.name).toLocaleLowerCase("pt-BR")===n); }
+function saveCatalogAndRefresh(message) { CatalogStorage.save(catalog); renderAll(); StudySync.run(); if(message) showToast(message,"success"); }
+function renameCatalogRecord(type, id) {
+  const items = type === "subject" ? catalog.subjects : catalog.topics;
+  const record = items.find((item) => item.id === id);
+  if (!record) return;
+  pendingCatalogRename = { type, id };
+  catalogRenameTitle.textContent = `Renomear ${type === "subject" ? "matéria" : "subtema"}`;
+  catalogRenameForm.elements.name.value = record.name;
+  catalogRenameModal.classList.remove("hidden");
+  window.setTimeout(() => catalogRenameForm.elements.name.focus(), 50);
+}
+
+function applyCatalogRename(type, id, requestedName) {
+  const items = type === "subject" ? catalog.subjects : catalog.topics;
+  const record = items.find((item) => item.id === id);
+  if (!record) return;
+  const name = normalizeCatalogName(requestedName);
+  if (!name || name === record.name) return;
+  const duplicate = catalogNameExists(items, name, type === "topic" ? (item) => item.subjectId === record.subjectId : () => true, id);
+  if (duplicate) { showToast("Já existe um cadastro com esse nome.", "error"); return; }
+  const now = Date.now();
+  record.name = name;
+  record.updatedAt = now;
+  sessions = sessions.map((session) => {
+    if (type === "subject" && session.subjectId === id) return { ...session, subject: name, reviewKey: session.reviewKey ? getTopicKey(name, session.topic) : session.reviewKey, updatedAt: now };
+    if (type === "topic" && session.topicId === id) return { ...session, topic: name, reviewKey: session.reviewKey ? getTopicKey(session.subject, name) : session.reviewKey, updatedAt: now };
+    return session;
+  });
+  reviews = reviews.map((review) => type === "subject" && review.subjectId === id
+    ? { ...review, subject: name, reviewKey: getTopicKey(name, review.topic), updatedAt: now }
+    : type === "topic" && review.topicId === id
+      ? { ...review, topic: name, reviewKey: getTopicKey(review.subject, name), updatedAt: now }
+      : review);
+  if (type === "subject") {
+    mocks = mocks.map((mock) => {
+      const scores = normalizeSubjectScores(mock.subjectScores);
+      if (!scores.some((score) => score.subjectId === id)) return mock;
+      return { ...mock, subjectScores: JSON.stringify(scores.map((score) => score.subjectId === id ? { ...score, subject: name } : score)), updatedAt: now };
+    });
+  }
+  StudyStorage.save(sessions);
+  ReviewStorage.save(reviews);
+  MockStorage.save(mocks);
+  saveCatalogAndRefresh("Nome atualizado.");
+}
+
+function closeCatalogRenameNow() {
+  pendingCatalogRename = null;
+  catalogRenameForm.reset();
+  catalogRenameModal.classList.add("hidden");
+}
+function archiveCatalogRecord(type,id){ const record=(type==="subject"?catalog.subjects:catalog.topics).find((x)=>x.id===id); if(!record)return; const used=type==="subject"?sessions.some((x)=>x.subjectId===id)||mocks.some((m)=>normalizeSubjectScores(m.subjectScores).some((x)=>x.subjectId===id)):sessions.some((x)=>x.topicId===id); const msg=used?`“${record.name}” já possui histórico. Ele será arquivado, não apagado, e os dados continuarão intactos. Continuar?`:`Arquivar “${record.name}”?`; if(!window.confirm(msg))return; record.archived=true;record.updatedAt=Date.now(); if(type==="subject") catalog.topics.filter((x)=>x.subjectId===id).forEach((x)=>{x.archived=true;x.updatedAt=Date.now();}); saveCatalogAndRefresh("Cadastro arquivado sem apagar o histórico."); }
+
 function renderAll() {
   renderHistory();
   renderStats();
@@ -1197,18 +1504,47 @@ function renderAll() {
   renderTimeDashboard();
   renderSmartStudy();
   renderCharts();
+  renderQuestionContextStats();
+  renderMocks();
+  renderCatalog();
   renderDatalists();
 }
 
 function resetForm() {
   editingId = null;
+  scheduledReviewKey = null;
   studyForm.reset();
   studyDate.value = toISODate();
   saveStudyButton.textContent = "Salvar sessão";
   cancelEditButton.classList.add("hidden");
   accuracyPreview.textContent = "0%";
   formHint.textContent = "Preencha os dados da sessão.";
+  syncQuestionContextMode();
   renderDatalists();
+}
+
+function startScheduledReview(reviewKey) {
+  const item = buildReviewSchedule().find((entry) => entry.key === reviewKey);
+  if (!item) {
+    showToast("Não foi possível localizar essa revisão.", "error");
+    return;
+  }
+
+  resetForm();
+  scheduledReviewKey = reviewKey;
+  const reviewType = studyForm.querySelector('input[name="activityType"][value="review"]');
+  if (reviewType) reviewType.checked = true;
+  const subjectId = item.subjectId || catalog.subjects.find((x) => x.name === item.subject)?.id || "";
+  const topicId = item.topicId || catalog.topics.find((x) => x.subjectId === subjectId && x.name === item.topic)?.id || "";
+  renderDatalists(subjectId, topicId);
+  studyForm.elements.date.value = toISODate();
+  syncQuestionContextMode();
+  saveStudyButton.textContent = "Concluir revisão";
+  formHint.textContent = `${ReviewEngine.getStatusLabel(item.status)} • prevista para ${formatDate(item.nextDate)}. Informe questões, acertos e tempo; ao salvar, a próxima revisão será calculada automaticamente.`;
+  updateAccuracyPreview();
+  renderDatalists();
+  document.getElementById("registrar").scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => studyForm.elements.questions.focus(), 250);
 }
 
 function startEdit(id) {
@@ -1216,13 +1552,17 @@ function startEdit(id) {
   if (!session) return;
 
   editingId = id;
-  studyForm.elements.subject.value = session.subject;
-  studyForm.elements.topic.value = session.topic;
+  scheduledReviewKey = session.activityType === "review" ? (session.reviewKey || getTopicKey(session.subject, session.topic)) : null;
+  const subjectId = session.subjectId || catalog.subjects.find((x) => x.name === session.subject)?.id || "";
+  const topicId = session.topicId || catalog.topics.find((x) => x.subjectId === subjectId && x.name === session.topic)?.id || "";
+  renderDatalists(subjectId, topicId);
   studyForm.elements.questions.value = session.questions;
   studyForm.elements.correct.value = session.correct;
   studyForm.elements.date.value = session.date;
   const typeInput = studyForm.querySelector(`input[name="activityType"][value="${session.activityType || "study"}"]`);
   if (typeInput) typeInput.checked = true;
+  if (studyForm.elements.questionContext) studyForm.elements.questionContext.value = session.questionContext || (session.activityType === "review" ? "review" : "study");
+  syncQuestionContextMode();
   studyForm.elements.hours.value = Math.floor((session.durationSeconds || 0) / 3600) || "";
   studyForm.elements.minutes.value = Math.floor(((session.durationSeconds || 0) % 3600) / 60) || "";
 
@@ -1291,8 +1631,8 @@ function syncReviewRecordForSession(session) {
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions);
   const now = Date.now();
   const record = {
-    id: existing?.id || createId(), sessionId: session.id,
-    subject: session.subject, topic: session.topic,
+    id: existing?.id || createId(), sessionId: session.id, reviewKey: session.reviewKey || getTopicKey(session.subject, session.topic),
+    subjectId: session.subjectId || null, topicId: session.topicId || null, subject: session.subject, topic: session.topic,
     questions: session.questions, correct: session.correct, date: session.date,
     previousInterval, nextInterval,
     createdAt: existing?.createdAt || session.createdAt || now,
@@ -1303,7 +1643,8 @@ function syncReviewRecordForSession(session) {
 
 studyForm.addEventListener("input", (event) => {
   updateAccuracyPreview();
-  if (event.target.name === "subject") renderDatalists();
+  if (event.target.name === "activityType") syncQuestionContextMode();
+  if (event.target.name === "subject") renderDatalists(event.target.value, "");
 });
 
 studyForm.addEventListener("submit", (event) => {
@@ -1388,6 +1729,43 @@ searchInput.addEventListener("input", renderHistory);
 
 
 
+
+if (mockForm) {
+  addMockSubjectButton.addEventListener("click", () => addMockSubjectRow());
+  mockSubjectRows.addEventListener("click", (event) => { const button = event.target.closest(".mock-remove-subject"); if (button) button.closest(".mock-subject-row").remove(); });
+  cancelMockEditButton.addEventListener("click", resetMockForm);
+  mockChartFilter.addEventListener("change", renderMockChart);
+  mockHistoryBody.addEventListener("click", (event) => { const button = event.target.closest("button[data-mock-action]"); if (!button) return; if (button.dataset.mockAction === "edit") editMock(button.dataset.id); if (button.dataset.mockAction === "delete") deleteMock(button.dataset.id); });
+  mockForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = getMockFormValues();
+    if (!data.name || !data.date || !Number.isFinite(data.overallScore) || !Number.isFinite(data.overallMaxScore) || data.overallScore < 0 || data.overallMaxScore <= 0 || data.overallScore > data.overallMaxScore || data.subjectScores.some((item) => !item.subject || !Number.isFinite(item.score) || !Number.isFinite(item.maxScore) || item.score < 0 || item.maxScore <= 0 || item.score > item.maxScore)) { showToast("Informe nota obtida e nota máxima corretamente. A nota obtida não pode superar a máxima.", "error"); return; }
+    const now = Date.now();
+    const record = { id: editingMockId || createId(), ...data, subjectScores: JSON.stringify(data.subjectScores), createdAt: editingMockId ? (mocks.find((m) => m.id === editingMockId)?.createdAt || now) : now, updatedAt: now };
+    mocks = editingMockId ? mocks.map((m) => m.id === editingMockId ? record : m) : [...mocks, record];
+    const wasEditing = Boolean(editingMockId); MockStorage.save(mocks); resetMockForm(); renderAll(); StudySync.run(); showToast(wasEditing ? "Simulado atualizado." : "Simulado salvo.", "success");
+  });
+}
+
+if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
+if (catalogList) {
+  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form"); if(!form)return; event.preventDefault(); const subjectId=form.closest(".catalog-subject").dataset.subjectId; const name=normalizeCatalogName(form.elements.name.value); if(!name)return; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse subtema já existe nessa matéria.","error");return;} const now=Date.now(); catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Subtema adicionado."); });
+  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const action=button.dataset.catalogAction; if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); });
+}
+if (catalogRenameForm) {
+  catalogRenameForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!pendingCatalogRename) return;
+    const { type, id } = pendingCatalogRename;
+    const name = catalogRenameForm.elements.name.value;
+    closeCatalogRenameNow();
+    applyCatalogRename(type, id, name);
+  });
+  closeCatalogRenameModal.addEventListener("click", closeCatalogRenameNow);
+  cancelCatalogRename.addEventListener("click", closeCatalogRenameNow);
+  catalogRenameModal.addEventListener("click", (event) => { if (event.target === catalogRenameModal) closeCatalogRenameNow(); });
+}
+
 timerStart.addEventListener("click", startTimer);
 timerPause.addEventListener("click", pauseTimer);
 timerResume.addEventListener("click", resumeTimer);
@@ -1415,7 +1793,7 @@ reviewFilterButtons.forEach((button) => {
 document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-review-action='complete']");
   if (!button) return;
-  openReviewModal(button.dataset.reviewKey);
+  startScheduledReview(button.dataset.reviewKey);
 });
 
 reviewForm.addEventListener("input", updateReviewPreview);
@@ -1461,13 +1839,18 @@ cancelAuthModal.addEventListener("click", closeAuthModalNow);
 authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuthModalNow(); });
 
 StudySync.init({
-  getState: () => ({ sessions, reviews, meta: syncMeta }),
+  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, meta: syncMeta }),
   applyState: (state) => {
     sessions = state.sessions;
     reviews = state.reviews;
+    mocks = state.mocks || [];
+    catalog = { subjects: state.subjects || [], topics: state.topics || [] };
+    migrateLegacyCatalogState();
     syncMeta = state.meta;
     StudyStorage.save(sessions);
     ReviewStorage.save(reviews);
+    MockStorage.save(mocks);
+    CatalogStorage.save(catalog);
     SyncStorage.save(syncMeta);
     renderAll();
   },
@@ -1475,6 +1858,9 @@ StudySync.init({
 });
 
 formatToday();
+migrateLegacyCatalogState();
+if (mockDate) resetMockForm();
+syncQuestionContextMode();
 renderAll();
 updateAccuracyPreview();
 renderTimer();
