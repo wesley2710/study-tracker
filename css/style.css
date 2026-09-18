@@ -1170,7 +1170,7 @@ select { font: inherit; }
 .time-summary-card small { display:block; margin-top:5px; color:var(--muted); font-size:10px; }
 
 .field-note { display:block; margin-top:6px; color:var(--muted); font-size:.75rem; line-height:1.35; }
-.catalog-panel { scroll-margin-top: 92px; }
+.catalog-panel { margin-top:18px; scroll-margin-top: 92px; }
 .catalog-help { color:var(--muted); margin:0 0 18px; line-height:1.55; }
 .catalog-create-row,.topic-catalog-form { display:flex; gap:10px; align-items:center; }
 .catalog-create-row input,.topic-catalog-form input { flex:1; min-width:0; }
