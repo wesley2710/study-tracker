@@ -37,9 +37,10 @@ const StudySync = (() => {
       const mocks = mergeRecords(local.mocks || [], remote.mocks || [], local.meta.mockTombstones || {});
       const subjects = mergeRecords(local.subjects || [], remote.subjects || [], local.meta.subjectTombstones || {});
       const topics = mergeRecords(local.topics || [], remote.topics || [], local.meta.topicTombstones || {});
-      const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {} });
-      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, lastSyncAt: Date.now() };
-      adapter.applyState({ sessions: mergeRecords(sessions, result.sessions || [], {}), reviews: mergeRecords(reviews, result.reviews || [], {}), mocks: mergeRecords(mocks, result.mocks || [], {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), meta: nextMeta });
+      const subtopics = mergeRecords(local.subtopics || [], remote.subtopics || [], local.meta.subtopicTombstones || {});
+      const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, subtopics, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {}, subtopicTombstones: local.meta.subtopicTombstones || {} });
+      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: Date.now() };
+      adapter.applyState({ sessions: mergeRecords(sessions, result.sessions || [], {}), reviews: mergeRecords(reviews, result.reviews || [], {}), mocks: mergeRecords(mocks, result.mocks || [], {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), meta: nextMeta });
       setStatus("synced", new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (error) {
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));

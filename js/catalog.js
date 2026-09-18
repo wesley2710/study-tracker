@@ -20,6 +20,7 @@ const CatalogEngine = (() => {
   function migrate(state, createId, timestamp = Date.now()) {
     const subjects = [...(state.subjects || [])];
     const topics = [...(state.topics || [])];
+    const subtopics = [...(state.subtopics || [])];
     let changed = false;
 
     function findOrCreateSubject(name) {
@@ -74,7 +75,7 @@ const CatalogEngine = (() => {
       return { ...mock, subjectScores: JSON.stringify(migratedScores), updatedAt: timestamp };
     });
 
-    return { ...state, sessions, reviews, mocks, subjects, topics, changed };
+    return { ...state, sessions, reviews, mocks, subjects, topics, subtopics, changed };
   }
 
   return { normalizeName, migrate };

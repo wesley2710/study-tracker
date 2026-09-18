@@ -1,18 +1,19 @@
 const SHEETS = {
   sessions: {
     name: 'Sessions',
-    headers: ['id', 'subjectId', 'topicId', 'subject', 'topic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
   },
   reviews: {
     name: 'Reviews',
-    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subject', 'topic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'createdAt', 'updatedAt', 'deletedAt']
   },
   mocks: {
     name: 'Mocks',
     headers: ['id', 'name', 'date', 'overallScore', 'overallMaxScore', 'subjectScores', 'createdAt', 'updatedAt', 'deletedAt']
   },
   subjects: { name: 'Subjects', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
-  topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] }
+  topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
+  subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] }
 };
 
 function doGet(e) {
@@ -67,11 +68,13 @@ function sync_(request) {
     applyTombstones_('mocks', request.mockTombstones || {});
     applyTombstones_('subjects', request.subjectTombstones || {});
     applyTombstones_('topics', request.topicTombstones || {});
+    applyTombstones_('subtopics', request.subtopicTombstones || {});
     upsertMany_('sessions', request.sessions || []);
     upsertMany_('reviews', request.reviews || []);
     upsertMany_('mocks', request.mocks || []);
     upsertMany_('subjects', request.subjects || []);
     upsertMany_('topics', request.topics || []);
+    upsertMany_('subtopics', request.subtopics || []);
     return getAll_();
   } finally {
     lock.releaseLock();
@@ -79,7 +82,7 @@ function sync_(request) {
 }
 
 function getAll_() {
-  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), serverTime: Date.now() };
+  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), subtopics: read_('subtopics', false), serverTime: Date.now() };
 }
 
 function sheet_(type) {
@@ -90,31 +93,35 @@ function sheet_(type) {
   if (!sheet) sheet = spreadsheet.insertSheet(spec.name);
   const currentLastColumn = Math.max(sheet.getLastColumn(), 1);
   const currentHeaders = sheet.getRange(1, 1, 1, currentLastColumn).getValues()[0].map(String);
-  if (currentHeaders.join('|') !== spec.headers.join('|')) {
-    // Migração por nome de coluna: preserva dados existentes quando novos campos são adicionados.
-    const rowCount = Math.max(sheet.getLastRow() - 1, 0);
-    const oldRows = rowCount ? sheet.getRange(2, 1, rowCount, currentLastColumn).getValues() : [];
-    const oldIndex = {};
-    currentHeaders.forEach(function(header, index) { if (header) oldIndex[header] = index; });
-    const migratedRows = oldRows.map(function(row) {
-      return spec.headers.map(function(header) { return oldIndex[header] == null ? '' : row[oldIndex[header]]; });
-    });
-    sheet.clearContents();
+  if (!currentHeaders.some(function(header) { return header; }) && sheet.getLastRow() <= 1) {
     sheet.getRange(1, 1, 1, spec.headers.length).setValues([spec.headers]);
-    if (migratedRows.length) sheet.getRange(2, 1, migratedRows.length, spec.headers.length).setValues(migratedRows);
+  } else {
+    // Migração por nome: acrescenta somente colunas ausentes e nunca limpa,
+    // recria ou move células já existentes.
+    const missing = spec.headers.filter(function(header) { return currentHeaders.indexOf(header) === -1; });
+    if (missing.length) sheet.getRange(1, currentLastColumn + 1, 1, missing.length).setValues([missing]);
   }
   sheet.setFrozenRows(1);
   return sheet;
 }
 
+function headerInfo_(type) {
+  const sheet = sheet_(type);
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(String);
+  const index = {};
+  headers.forEach(function(header, position) { if (header) index[header] = position; });
+  return { sheet: sheet, headers: headers, index: index };
+}
+
 function read_(type, includeDeleted) {
   const spec = SHEETS[type];
-  const sheet = sheet_(type);
+  const info = headerInfo_(type);
+  const sheet = info.sheet;
   if (sheet.getLastRow() < 2) return [];
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, spec.headers.length).getValues()
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, info.headers.length).getValues()
     .map(function(row) {
       const item = {};
-      spec.headers.forEach(function(header, index) { item[header] = row[index]; });
+      spec.headers.forEach(function(header) { item[header] = info.index[header] == null ? '' : row[info.index[header]]; });
       ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore'].forEach(function(key) {
         if (item[key] !== '') item[key] = Number(item[key]);
       });
@@ -126,10 +133,12 @@ function read_(type, includeDeleted) {
 function upsertMany_(type, records) {
   if (!records.length) return;
   const spec = SHEETS[type];
-  const sheet = sheet_(type);
+  const info = headerInfo_(type);
+  const sheet = info.sheet;
   const existing = read_(type, true);
   const byId = {};
-  existing.forEach(function(item, index) { byId[item.id] = { item: item, row: index + 2 }; });
+  const rawRows = sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, info.headers.length).getValues();
+  existing.forEach(function(item, index) { byId[item.id] = { item: item, row: index + 2, raw: rawRows[index] || [] }; });
   const additions = [];
   records.forEach(function(record) {
     if (!record || !record.id) return;
@@ -137,11 +146,13 @@ function upsertMany_(type, records) {
     const incomingTime = Number(record.deletedAt || record.updatedAt || record.createdAt || 0);
     const storedTime = found ? Number(found.item.deletedAt || found.item.updatedAt || found.item.createdAt || 0) : -1;
     if (found && incomingTime < storedTime) return;
-    const row = spec.headers.map(function(header) { return record[header] == null ? '' : record[header]; });
+    const row = info.headers.map(function(header, index) {
+      return spec.headers.indexOf(header) === -1 ? (found ? found.raw[index] : '') : (record[header] == null ? '' : record[header]);
+    });
     if (found) sheet.getRange(found.row, 1, 1, row.length).setValues([row]);
     else additions.push(row);
   });
-  if (additions.length) sheet.getRange(sheet.getLastRow() + 1, 1, additions.length, spec.headers.length).setValues(additions);
+  if (additions.length) sheet.getRange(sheet.getLastRow() + 1, 1, additions.length, info.headers.length).setValues(additions);
 }
 
 function upsertOne_(type, record) {

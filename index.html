@@ -127,7 +127,7 @@
                 <span class="panel-kicker">Desempenho</span>
                 <h3>Resumo por matéria</h3>
               </div>
-              <button class="text-button">Ver detalhes</button>
+              <button class="text-button" id="performanceDetailsButton" type="button">Ver detalhes</button>
             </div>
 
             <div class="subject-list" id="subjectPerformance">
@@ -213,9 +213,14 @@
                   <small class="field-note">Cadastre matérias em “Matérias e subtemas”.</small>
                 </label>
                 <label>
-                  <span>Subtema</span>
+                  <span>Tema</span>
                   <select name="topic" id="topicInput" required disabled><option value="">Selecione primeiro a matéria</option></select>
-                  <small class="field-note">A lista mostra apenas subtemas da matéria escolhida.</small>
+                  <small class="field-note">Selecione o tema principal da matéria.</small>
+                </label>
+                <label>
+                  <span>Subtema <small>(opcional)</small></span>
+                  <select name="subtopic" id="subtopicInput" disabled><option value="">Selecione primeiro o tema</option></select>
+                  <small class="field-note">Use apenas quando precisar dividir o tema em assuntos revisáveis menores.</small>
                 </label>
                 <label>
                   <span>Questões feitas</span>
@@ -261,6 +266,7 @@
               <h3>Tempo e produtividade</h3>
             </div>
             <div class="time-filters">
+              <label class="date-filter" title="Selecionar um dia específico"><span>Data</span><input type="date" id="timeExactDate" /></label>
               <button class="filter-chip active" data-time-filter="today">Hoje</button>
               <button class="filter-chip" data-time-filter="week">7 dias</button>
               <button class="filter-chip" data-time-filter="month">30 dias</button>
@@ -480,7 +486,7 @@
         <section class="panel topic-analysis-panel">
           <div class="panel-header">
             <div>
-              <span class="panel-kicker">Análise por subtema</span>
+              <span class="panel-kicker">Análise por assunto</span>
               <h3>Desempenho detalhado</h3>
             </div>
           </div>
@@ -490,7 +496,7 @@
               <thead>
                 <tr>
                   <th>Matéria</th>
-                  <th>Subtema</th>
+                  <th>Tema / subtema</th>
                   <th>Questões</th>
                   <th>Acertos</th>
                   <th>Tempo</th>
@@ -502,7 +508,7 @@
               </thead>
               <tbody id="topicAnalysisBody">
                 <tr class="empty-table-row">
-                  <td colspan="8">
+                  <td colspan="9">
                     <div class="empty-state">
                       <strong>Nenhum subtema analisado</strong>
                       <span>Os dados aparecerão aqui conforme você registrar sessões.</span>
@@ -562,11 +568,11 @@
           <div class="panel-header">
             <div>
               <span class="panel-kicker">Organização</span>
-              <h3>Matérias e subtemas</h3>
+              <h3>Matérias, temas e subtemas</h3>
             </div>
             <span class="badge"><strong id="catalogSubjectCount">0</strong>&nbsp; matérias ativas</span>
           </div>
-          <p class="catalog-help">Cadastre cada matéria uma vez e organize seus subtemas. Renomear ou arquivar mantém todo o histórico ligado aos mesmos identificadores.</p>
+          <p class="catalog-help">Cadastre cada matéria uma vez. Dentro dela, organize os temas e, quando necessário, subtemas opcionais. Clique em uma matéria ou tema para expandir. Renomear ou arquivar preserva o histórico pelos identificadores.</p>
           <form id="subjectCatalogForm" class="catalog-create-row">
             <input type="text" name="name" maxlength="160" placeholder="Nome da matéria" required />
             <button class="primary-button" type="submit">+ Adicionar matéria</button>
@@ -593,7 +599,7 @@
                 <tr>
                   <th>Data</th>
                   <th>Matéria</th>
-                  <th>Subtema</th>
+                  <th>Tema / subtema</th>
                   <th>Questões</th>
                   <th>Acertos</th>
                   <th>Tempo</th>
@@ -703,11 +709,11 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=1.1.2"></script>
+  <script src="js/storage.js?v=1.3.0"></script>
   <script src="js/api.js?v=1.1.2"></script>
-  <script src="js/sync.js?v=1.1.2"></script>
+  <script src="js/sync.js?v=1.3.0"></script>
   <script src="js/reviews.js?v=1.2.0"></script>
-  <script src="js/catalog.js?v=1.1.2"></script>
-  <script src="js/app.js?v=1.2.0"></script>
+  <script src="js/catalog.js?v=1.3.0"></script>
+  <script src="js/app.js?v=1.3.0"></script>
 </body>
 </html>

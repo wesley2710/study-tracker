@@ -15,6 +15,9 @@ const formHint = document.querySelector("#formHint");
 const studyDate = document.querySelector("#studyDate");
 const subjectInput = document.querySelector("#subjectInput");
 const topicInput = document.querySelector("#topicInput");
+const subtopicInput = document.querySelector("#subtopicInput");
+const performanceDetailsButton = document.querySelector("#performanceDetailsButton");
+const timeExactDate = document.querySelector("#timeExactDate");
 const subjectCatalogForm = document.querySelector("#subjectCatalogForm");
 const catalogList = document.querySelector("#catalogList");
 const catalogSubjectCount = document.querySelector("#catalogSubjectCount");
@@ -121,15 +124,16 @@ let pendingCatalogRename = null;
 let syncMeta = SyncStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
+let exactTimeDate = '';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
 
 function migrateLegacyCatalogState() {
-  const migrated = CatalogEngine.migrate({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics }, createId);
+  const migrated = CatalogEngine.migrate({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics }, createId);
   sessions = migrated.sessions;
   reviews = migrated.reviews;
   mocks = migrated.mocks;
-  catalog = { subjects: migrated.subjects, topics: migrated.topics };
+  catalog = { subjects: migrated.subjects, topics: migrated.topics, subtopics: migrated.subtopics || [] };
   if (migrated.changed) {
     StudyStorage.save(sessions);
     ReviewStorage.save(reviews);
@@ -188,8 +192,11 @@ function getFormValues() {
   const topicId = studyForm.elements.topic.value;
   const subjectRecord = catalog.subjects.find((item) => item.id === subjectId);
   const topicRecord = catalog.topics.find((item) => item.id === topicId && item.subjectId === subjectId);
+  const subtopicId = studyForm.elements.subtopic?.value || null;
+  const subtopicRecord = catalog.subtopics.find((item) => item.id === subtopicId && item.topicId === topicId);
   const subject = subjectRecord?.name || "";
   const topic = topicRecord?.name || "";
+  const subtopic = subtopicRecord?.name || "";
   const questions = Number(studyForm.elements.questions.value);
   const correct = Number(studyForm.elements.correct.value);
   const date = studyForm.elements.date.value;
@@ -200,14 +207,14 @@ function getFormValues() {
   const manualDurationSeconds = (hours * 3600) + (minutes * 60);
   const durationSeconds = manualDurationSeconds || getTimerElapsedSeconds();
 
-  const reviewKey = activityType === "review" ? (scheduledReviewKey || getTopicKey(subject, topic)) : null;
+  const reviewKey = activityType === "review" ? (scheduledReviewKey || getTopicKey(subject, topic, subtopic)) : null;
 
-  return { subjectId, topicId, subject, topic, questions, correct, date, activityType, questionContext, reviewKey, durationSeconds };
+  return { subjectId, topicId, subtopicId, subject, topic, subtopic, questions, correct, date, activityType, questionContext, reviewKey, durationSeconds };
 }
 
 function validateSession(data) {
   if (!data.subject) return "Informe a matéria.";
-  if (!data.topic) return "Informe o subtema.";
+  if (!data.topic) return "Informe o tema.";
   if (!data.date) return "Informe a data do estudo.";
   if (!Number.isInteger(data.questions) || data.questions <= 0) {
     return "Questões feitas deve ser um número inteiro maior que zero.";
@@ -389,7 +396,7 @@ function renderSubjectPerformance() {
   `).join("");
 }
 
-function renderDatalists(selectedSubjectId = null, selectedTopicId = null) {
+function renderDatalists(selectedSubjectId = null, selectedTopicId = null, selectedSubtopicId = null) {
   const currentSubject = selectedSubjectId ?? subjectInput.value;
   const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
   subjectInput.innerHTML = `<option value="">Selecione uma matéria</option>${activeSubjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
@@ -400,6 +407,14 @@ function renderDatalists(selectedSubjectId = null, selectedTopicId = null) {
   topicInput.disabled = !subjectId;
   topicInput.innerHTML = subjectId ? `<option value="">Selecione um subtema</option>${activeTopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro a matéria</option>`;
   if (activeTopics.some((item) => item.id === currentTopic)) topicInput.value = currentTopic;
+  const topicId = topicInput.value;
+  const currentSubtopic = selectedSubtopicId ?? (subtopicInput?.value || "");
+  const activeSubtopics = (catalog.subtopics || []).filter((item) => !item.archived && item.topicId === topicId).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  if (subtopicInput) {
+    subtopicInput.disabled = !topicId;
+    subtopicInput.innerHTML = topicId ? `<option value="">Sem subtema</option>${activeSubtopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro o tema</option>`;
+    if (activeSubtopics.some((item) => item.id === currentSubtopic)) subtopicInput.value = currentSubtopic;
+  }
 }
 
 
@@ -515,6 +530,7 @@ function resetTimerAfterSave() {
 }
 
 function sessionInTimeFilter(session) {
+  if (activeTimeFilter === "exact") return Boolean(exactTimeDate) && session.date === exactTimeDate;
   if (activeTimeFilter === "all") return true;
   const sessionDate = new Date(`${session.date}T00:00:00`);
   const today = new Date();
@@ -567,9 +583,9 @@ function daysSince(isoDate) {
   return Math.max(0, Math.floor((now - date) / 86400000));
 }
 
-function getLatestSessionForTopic(subject, topic) {
+function getLatestSessionForTopic(subject, topic, subtopic = "") {
   return sessions
-    .filter((s) => s.subject === subject && s.topic === topic)
+    .filter((s) => s.subject === subject && s.topic === topic && (s.subtopic || "") === (subtopic || ""))
     .sort((a,b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0] || null;
 }
 
@@ -578,8 +594,8 @@ function buildSmartStudyRecommendations() {
   const schedule = buildReviewSchedule();
 
   return topics.map((topic) => {
-    const review = schedule.find((r) => r.key === getTopicKey(topic.subject, topic.topic));
-    const latest = getLatestSessionForTopic(topic.subject, topic.topic);
+    const review = schedule.find((r) => r.key === getTopicKey(topic.subject, topic.topic, topic.subtopic));
+    const latest = getLatestSessionForTopic(topic.subject, topic.topic, topic.subtopic);
     const recencyDays = latest ? daysSince(latest.date) : 999;
 
     let score = 0;
@@ -802,18 +818,18 @@ function renderCharts() {
   });
 }
 
-function getTopicKey(subject, topic) {
-  return `${subject}|||${topic}`;
+function getTopicKey(subject, topic, subtopic = "") {
+  return `${subject}|||${topic}|||${subtopic || ""}`;
 }
 
-function getCompletedReviewsForTopic(subject, topic) {
+function getCompletedReviewsForTopic(subject, topic, subtopic = "") {
   return reviews
-    .filter((r) => r.subject === subject && r.topic === topic)
+    .filter((r) => r.subject === subject && r.topic === topic && (r.subtopic || "") === (subtopic || ""))
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
 }
 
-function getReviewStreak(subject, topic) {
-  const completed = getCompletedReviewsForTopic(subject, topic).slice().reverse();
+function getReviewStreak(subject, topic, subtopic = "") {
+  const completed = getCompletedReviewsForTopic(subject, topic, subtopic).slice().reverse();
   let streak = 0;
 
   for (const review of completed) {
@@ -829,11 +845,11 @@ function buildReviewSchedule() {
   const topics = aggregateTopics();
 
   return topics.map((topic) => {
-    const topicReviews = getCompletedReviewsForTopic(topic.subject, topic.topic);
+    const topicReviews = getCompletedReviewsForTopic(topic.subject, topic.topic, topic.subtopic);
     const latestReview = topicReviews.length ? topicReviews[topicReviews.length - 1] : null;
 
     const latestStudySession = sessions
-      .filter((s) => s.subject === topic.subject && s.topic === topic.topic)
+      .filter((s) => s.subject === topic.subject && s.topic === topic.topic && (s.subtopic || "") === (topic.subtopic || ""))
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0];
 
     let lastDate = latestStudySession?.date || topic.latestDate;
@@ -848,7 +864,7 @@ function buildReviewSchedule() {
       previousInterval = latestReview.nextInterval || ReviewEngine.getInitialInterval();
     }
 
-    const streak = getReviewStreak(topic.subject, topic.topic);
+    const streak = getReviewStreak(topic.subject, topic.topic, topic.subtopic);
     // Uma revisão concluída já possui o intervalo calculado. Renderizar o
     // dashboard nunca deve avançá-lo novamente; só uma nova revisão progride.
     const nextInterval = latestReview
@@ -859,11 +875,13 @@ function buildReviewSchedule() {
     const status = ReviewEngine.compareDate(nextDate);
 
     return {
-      key: getTopicKey(topic.subject, topic.topic),
+      key: getTopicKey(topic.subject, topic.topic, topic.subtopic),
       subjectId: topic.subjectId || null,
       topicId: topic.topicId || null,
+      subtopicId: topic.subtopicId || null,
       subject: topic.subject,
       topic: topic.topic,
+      subtopic: topic.subtopic || "",
       lastDate,
       lastPercentage,
       previousInterval,
@@ -912,8 +930,8 @@ function renderReviewQueue() {
       <div class="review-item ${priorityClass}">
         <span class="priority-dot"></span>
         <div>
-          <strong>${escapeHtml(item.topic)}</strong>
-          <small>${escapeHtml(item.subject)} • ${formatPercent(item.lastPercentage)} • ${formatDate(item.nextDate)}</small>
+          <strong>${escapeHtml(item.subtopic || item.topic)}</strong>
+          <small>${escapeHtml(item.subject)}${item.subtopic ? ` • ${escapeHtml(item.topic)}` : ""} • ${formatPercent(item.lastPercentage)} • ${formatDate(item.nextDate)}</small>
         </div>
         <button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Revisar</button>
       </div>`;
@@ -1019,8 +1037,8 @@ function updateReviewPreview() {
   const schedule = buildReviewSchedule();
   const item = schedule.find((entry) => entry.key === key);
   const previousInterval = item?.interval || null;
-  const [subject, topic] = key.split("|||");
-  const currentStreak = getReviewStreak(subject, topic);
+  const [subject, topic, subtopic = ""] = key.split("|||");
+  const currentStreak = getReviewStreak(subject, topic, subtopic);
   const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions);
 
@@ -1041,11 +1059,11 @@ function saveReviewResult(event) {
     return;
   }
 
-  const [subject, topic] = reviewKey.split("|||");
+  const [subject, topic, subtopic = ""] = reviewKey.split("|||");
   const schedule = buildReviewSchedule();
   const item = schedule.find((entry) => entry.key === reviewKey);
   const percentage = (correct / questions) * 100;
-  const currentStreak = getReviewStreak(subject, topic);
+  const currentStreak = getReviewStreak(subject, topic, subtopic);
   const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
   const previousInterval = item?.interval || null;
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions);
@@ -1059,8 +1077,10 @@ function saveReviewResult(event) {
     reviewKey,
     subjectId: catalog.subjects.find((x) => x.name === subject)?.id || null,
     topicId: catalog.topics.find((x) => x.name === topic && x.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id || null,
+    subtopicId: catalog.subtopics.find((x) => x.name === subtopic && x.topicId === (catalog.topics.find((t) => t.name === topic && t.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id))?.id || null,
     subject,
     topic,
+    subtopic,
     questions,
     correct,
     date,
@@ -1075,8 +1095,10 @@ function saveReviewResult(event) {
     id: sessionId,
     subjectId: catalog.subjects.find((x) => x.name === subject)?.id || null,
     topicId: catalog.topics.find((x) => x.name === topic && x.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id || null,
+    subtopicId: catalog.subtopics.find((x) => x.name === subtopic && x.topicId === (catalog.topics.find((t) => t.name === topic && t.subjectId === (catalog.subjects.find((y) => y.name === subject)?.id))?.id))?.id || null,
     subject,
     topic,
+    subtopic,
     reviewKey,
     questions,
     correct,
@@ -1100,14 +1122,17 @@ function aggregateTopics() {
   const topicMap = new Map();
 
   sessions.forEach((session) => {
-    const key = `${session.subject}|||${session.topic}`;
+    const key = getTopicKey(session.subject, session.topic, session.subtopic || "");
     const current = topicMap.get(key) || {
       subjectId: session.subjectId || null,
       topicId: session.topicId || null,
+      subtopicId: session.subtopicId || null,
       subject: session.subject,
       topic: session.topic,
+      subtopic: session.subtopic || "",
       questions: 0,
       correct: 0,
+      durationSeconds: 0,
       sessions: 0,
       diagnosticQuestions: 0,
       diagnosticCorrect: 0,
@@ -1118,6 +1143,7 @@ function aggregateTopics() {
 
     current.questions += session.questions;
     current.correct += session.correct;
+    current.durationSeconds += Number(session.durationSeconds || 0);
     current.sessions += 1;
     current.percentages.push((session.correct / session.questions) * 100);
     const context = session.questionContext || (session.activityType === "review" ? "review" : "study");
@@ -1237,8 +1263,8 @@ function renderTopicAnalytics() {
     weakTopicsListEl.innerHTML = weakTopics.map((item) => `
       <div class="diagnostic-item">
         <div>
-          <strong>${escapeHtml(item.topic)}</strong>
-          <small>${escapeHtml(item.subject)} • ${formatPercent(item.percentage)} • ${formatNumber(item.questions)} questões</small>
+          <strong>${escapeHtml(item.subtopic || item.topic)}</strong>
+          <small>${escapeHtml(item.subject)}${item.subtopic ? ` • ${escapeHtml(item.topic)}` : ""} • ${formatPercent(item.percentage)} • ${formatNumber(item.questions)} questões</small>
         </div>
         <span class="priority-score">${item.priorityScore}</span>
       </div>
@@ -1251,9 +1277,10 @@ function renderTopicAnalytics() {
     return `
       <tr>
         <td>${escapeHtml(item.subject)}</td>
-        <td>${escapeHtml(item.topic)}</td>
+        <td>${escapeHtml(item.topic)}${item.subtopic ? `<small class="table-subtopic"> › ${escapeHtml(item.subtopic)}</small>` : ""}</td>
         <td>${formatNumber(item.questions)}</td>
         <td>${formatNumber(item.correct)}</td>
+        <td>${formatDuration(item.durationSeconds)}</td>
         <td><strong>${formatPercent(item.percentage)}</strong></td>
         <td><span class="confidence-badge ${item.confidence.className}">${item.confidence.label}</span></td>
         <td><span class="state-badge ${item.mastery.className}">${item.mastery.label}</span></td>
@@ -1433,46 +1460,57 @@ function renderCatalog() {
   if (!catalogList) return;
   const subjects = [...catalog.subjects].filter((x) => !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
   catalogSubjectCount.textContent = subjects.length;
-  if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os subtemas.</span></div>`; return; }
+  if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os temas.</span></div>`; return; }
   catalogList.innerHTML = subjects.map((subject) => {
     const topics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
-    return `<div class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}"><div class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} subtema${topics.length===1?"":"s"}</small></div><div class="catalog-actions"><button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></div><div class="catalog-topics">${topics.map((topic)=>`<div class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}"><span>${escapeHtml(topic.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">Nenhum subtema ainda.</small>`}</div><form class="topic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema" required /><button class="ghost-button" type="submit">+ Subtema</button></form></div>`;
+    return `<details class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}">
+      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} tema${topics.length===1?"":"s"}</small></div><div class="catalog-actions"><button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
+      <div class="catalog-subject-body">
+        <div class="catalog-topics">${topics.map((topic)=>{
+          const subtopics=(catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+          return `<details class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}"><summary><span><strong>${escapeHtml(topic.name)}</strong><small>${subtopics.length} subtema${subtopics.length===1?"":"s"}</small></span><div><button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></summary><div class="catalog-subtopic-body"><div class="catalog-subtopics">${subtopics.map((sub)=>`<div class="catalog-subtopic" data-subtopic-id="${escapeAttribute(sub.id)}"><span>${escapeHtml(sub.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-subtopic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subtopic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">Nenhum subtema — opcional.</small>`}</div><form class="subtopic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema (opcional)" /><button class="ghost-button" type="submit">+ Subtema</button></form></div></details>`;
+        }).join("") || `<small class="catalog-empty-topic">Nenhum tema ainda.</small>`}</div>
+        <form class="topic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar tema" required /><button class="ghost-button" type="submit">+ Tema</button></form>
+      </div></details>`;
   }).join("");
 }
 function catalogNameExists(items, name, predicate = () => true, exceptId = null) { const n=normalizeCatalogName(name).toLocaleLowerCase("pt-BR"); return items.some((x)=>x.id!==exceptId && predicate(x) && !x.archived && normalizeCatalogName(x.name).toLocaleLowerCase("pt-BR")===n); }
 function saveCatalogAndRefresh(message) { CatalogStorage.save(catalog); renderAll(); StudySync.run(); if(message) showToast(message,"success"); }
 function renameCatalogRecord(type, id) {
-  const items = type === "subject" ? catalog.subjects : catalog.topics;
+  const items = type === "subject" ? catalog.subjects : type === "topic" ? catalog.topics : catalog.subtopics;
   const record = items.find((item) => item.id === id);
   if (!record) return;
   pendingCatalogRename = { type, id };
-  catalogRenameTitle.textContent = `Renomear ${type === "subject" ? "matéria" : "subtema"}`;
+  catalogRenameTitle.textContent = `Renomear ${type === "subject" ? "matéria" : type === "topic" ? "tema" : "subtema"}`;
   catalogRenameForm.elements.name.value = record.name;
   catalogRenameModal.classList.remove("hidden");
   window.setTimeout(() => catalogRenameForm.elements.name.focus(), 50);
 }
 
 function applyCatalogRename(type, id, requestedName) {
-  const items = type === "subject" ? catalog.subjects : catalog.topics;
+  const items = type === "subject" ? catalog.subjects : type === "topic" ? catalog.topics : catalog.subtopics;
   const record = items.find((item) => item.id === id);
   if (!record) return;
   const name = normalizeCatalogName(requestedName);
   if (!name || name === record.name) return;
-  const duplicate = catalogNameExists(items, name, type === "topic" ? (item) => item.subjectId === record.subjectId : () => true, id);
+  const duplicate = catalogNameExists(items, name, type === "topic" ? (item) => item.subjectId === record.subjectId : type === "subtopic" ? (item) => item.topicId === record.topicId : () => true, id);
   if (duplicate) { showToast("Já existe um cadastro com esse nome.", "error"); return; }
   const now = Date.now();
   record.name = name;
   record.updatedAt = now;
   sessions = sessions.map((session) => {
-    if (type === "subject" && session.subjectId === id) return { ...session, subject: name, reviewKey: session.reviewKey ? getTopicKey(name, session.topic) : session.reviewKey, updatedAt: now };
-    if (type === "topic" && session.topicId === id) return { ...session, topic: name, reviewKey: session.reviewKey ? getTopicKey(session.subject, name) : session.reviewKey, updatedAt: now };
+    if (type === "subject" && session.subjectId === id) return { ...session, subject: name, reviewKey: session.reviewKey ? getTopicKey(name, session.topic, session.subtopic || "") : session.reviewKey, updatedAt: now };
+    if (type === "topic" && session.topicId === id) return { ...session, topic: name, reviewKey: session.reviewKey ? getTopicKey(session.subject, name, session.subtopic || "") : session.reviewKey, updatedAt: now };
+    if (type === "subtopic" && session.subtopicId === id) return { ...session, subtopic: name, reviewKey: session.reviewKey ? getTopicKey(session.subject, session.topic, name) : session.reviewKey, updatedAt: now };
     return session;
   });
   reviews = reviews.map((review) => type === "subject" && review.subjectId === id
-    ? { ...review, subject: name, reviewKey: getTopicKey(name, review.topic), updatedAt: now }
+    ? { ...review, subject: name, reviewKey: getTopicKey(name, review.topic, review.subtopic || ""), updatedAt: now }
     : type === "topic" && review.topicId === id
-      ? { ...review, topic: name, reviewKey: getTopicKey(review.subject, name), updatedAt: now }
-      : review);
+      ? { ...review, topic: name, reviewKey: getTopicKey(review.subject, name, review.subtopic || ""), updatedAt: now }
+      : type === "subtopic" && review.subtopicId === id
+        ? { ...review, subtopic: name, reviewKey: getTopicKey(review.subject, review.topic, name), updatedAt: now }
+        : review);
   if (type === "subject") {
     mocks = mocks.map((mock) => {
       const scores = normalizeSubjectScores(mock.subjectScores);
@@ -1491,7 +1529,16 @@ function closeCatalogRenameNow() {
   catalogRenameForm.reset();
   catalogRenameModal.classList.add("hidden");
 }
-function archiveCatalogRecord(type,id){ const record=(type==="subject"?catalog.subjects:catalog.topics).find((x)=>x.id===id); if(!record)return; const used=type==="subject"?sessions.some((x)=>x.subjectId===id)||mocks.some((m)=>normalizeSubjectScores(m.subjectScores).some((x)=>x.subjectId===id)):sessions.some((x)=>x.topicId===id); const msg=used?`“${record.name}” já possui histórico. Ele será arquivado, não apagado, e os dados continuarão intactos. Continuar?`:`Arquivar “${record.name}”?`; if(!window.confirm(msg))return; record.archived=true;record.updatedAt=Date.now(); if(type==="subject") catalog.topics.filter((x)=>x.subjectId===id).forEach((x)=>{x.archived=true;x.updatedAt=Date.now();}); saveCatalogAndRefresh("Cadastro arquivado sem apagar o histórico."); }
+function archiveCatalogRecord(type,id){
+  const items=type==="subject"?catalog.subjects:type==="topic"?catalog.topics:catalog.subtopics;
+  const record=items.find((x)=>x.id===id); if(!record)return;
+  const used=type==="subject" ? sessions.some((x)=>x.subjectId===id)||mocks.some((m)=>normalizeSubjectScores(m.subjectScores).some((x)=>x.subjectId===id)) : type==="topic" ? sessions.some((x)=>x.topicId===id) : sessions.some((x)=>x.subtopicId===id);
+  const msg=used?`“${record.name}” já possui histórico. Ele será arquivado, não apagado, e os dados continuarão intactos. Continuar?`:`Arquivar “${record.name}”?`; if(!window.confirm(msg))return;
+  const now=Date.now(); record.archived=true;record.updatedAt=now;
+  if(type==="subject") { catalog.topics.filter((x)=>x.subjectId===id).forEach((x)=>{x.archived=true;x.updatedAt=now;(catalog.subtopics||[]).filter((s)=>s.topicId===x.id).forEach((s)=>{s.archived=true;s.updatedAt=now;});}); }
+  if(type==="topic") (catalog.subtopics||[]).filter((x)=>x.topicId===id).forEach((x)=>{x.archived=true;x.updatedAt=now;});
+  saveCatalogAndRefresh("Cadastro arquivado sem apagar o histórico.");
+}
 
 function renderAll() {
   renderHistory();
@@ -1536,13 +1583,12 @@ function startScheduledReview(reviewKey) {
   if (reviewType) reviewType.checked = true;
   const subjectId = item.subjectId || catalog.subjects.find((x) => x.name === item.subject)?.id || "";
   const topicId = item.topicId || catalog.topics.find((x) => x.subjectId === subjectId && x.name === item.topic)?.id || "";
-  renderDatalists(subjectId, topicId);
+  renderDatalists(subjectId, topicId, item.subtopicId || "");
   studyForm.elements.date.value = toISODate();
   syncQuestionContextMode();
   saveStudyButton.textContent = "Concluir revisão";
   formHint.textContent = `${ReviewEngine.getStatusLabel(item.status)} • prevista para ${formatDate(item.nextDate)}. Informe questões, acertos e tempo; ao salvar, a próxima revisão será calculada automaticamente.`;
   updateAccuracyPreview();
-  renderDatalists();
   document.getElementById("registrar").scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => studyForm.elements.questions.focus(), 250);
 }
@@ -1552,10 +1598,10 @@ function startEdit(id) {
   if (!session) return;
 
   editingId = id;
-  scheduledReviewKey = session.activityType === "review" ? (session.reviewKey || getTopicKey(session.subject, session.topic)) : null;
+  scheduledReviewKey = session.activityType === "review" ? (session.reviewKey || getTopicKey(session.subject, session.topic, session.subtopic || "")) : null;
   const subjectId = session.subjectId || catalog.subjects.find((x) => x.name === session.subject)?.id || "";
   const topicId = session.topicId || catalog.topics.find((x) => x.subjectId === subjectId && x.name === session.topic)?.id || "";
-  renderDatalists(subjectId, topicId);
+  renderDatalists(subjectId, topicId, session.subtopicId || "");
   studyForm.elements.questions.value = session.questions;
   studyForm.elements.correct.value = session.correct;
   studyForm.elements.date.value = session.date;
@@ -1570,7 +1616,6 @@ function startEdit(id) {
   cancelEditButton.classList.remove("hidden");
   formHint.textContent = "Editando registro existente.";
   updateAccuracyPreview();
-  renderDatalists();
   document.getElementById("registrar").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1621,7 +1666,7 @@ function syncReviewRecordForSession(session) {
   }
 
   const priorReviews = reviews
-    .filter((item) => item.sessionId !== session.id && item.subject === session.subject && item.topic === session.topic)
+    .filter((item) => item.sessionId !== session.id && item.subject === session.subject && item.topic === session.topic && (item.subtopic || "") === (session.subtopic || ""))
     .sort((a, b) => b.date.localeCompare(a.date) || Number(b.createdAt) - Number(a.createdAt));
   const previousInterval = priorReviews[0]?.nextInterval || null;
   const percentage = (session.correct / session.questions) * 100;
@@ -1631,8 +1676,8 @@ function syncReviewRecordForSession(session) {
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions);
   const now = Date.now();
   const record = {
-    id: existing?.id || createId(), sessionId: session.id, reviewKey: session.reviewKey || getTopicKey(session.subject, session.topic),
-    subjectId: session.subjectId || null, topicId: session.topicId || null, subject: session.subject, topic: session.topic,
+    id: existing?.id || createId(), sessionId: session.id, reviewKey: session.reviewKey || getTopicKey(session.subject, session.topic, session.subtopic || ""),
+    subjectId: session.subjectId || null, topicId: session.topicId || null, subtopicId: session.subtopicId || null, subject: session.subject, topic: session.topic, subtopic: session.subtopic || "",
     questions: session.questions, correct: session.correct, date: session.date,
     previousInterval, nextInterval,
     createdAt: existing?.createdAt || session.createdAt || now,
@@ -1645,6 +1690,7 @@ studyForm.addEventListener("input", (event) => {
   updateAccuracyPreview();
   if (event.target.name === "activityType") syncQuestionContextMode();
   if (event.target.name === "subject") renderDatalists(event.target.value, "");
+  if (event.target.name === "topic") renderDatalists(subjectInput.value, event.target.value);
 });
 
 studyForm.addEventListener("submit", (event) => {
@@ -1749,8 +1795,8 @@ if (mockForm) {
 
 if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
 if (catalogList) {
-  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form"); if(!form)return; event.preventDefault(); const subjectId=form.closest(".catalog-subject").dataset.subjectId; const name=normalizeCatalogName(form.elements.name.value); if(!name)return; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse subtema já existe nessa matéria.","error");return;} const now=Date.now(); catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Subtema adicionado."); });
-  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const action=button.dataset.catalogAction; if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); });
+  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Subtema adicionado."); } });
+  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
 }
 if (catalogRenameForm) {
   catalogRenameForm.addEventListener("submit", (event) => {
@@ -1772,11 +1818,15 @@ timerResume.addEventListener("click", resumeTimer);
 timerFinish.addEventListener("click", finishTimer);
 timerCancel.addEventListener("click", cancelTimer);
 
+
+if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+if (timeExactDate) timeExactDate.addEventListener("change", () => { if (!timeExactDate.value) return; exactTimeDate = timeExactDate.value; activeTimeFilter = "exact"; timeFilterButtons.forEach((item) => item.classList.remove("active")); renderTimeDashboard(); });
 timeFilterButtons.forEach((button) => {
   button.addEventListener("click", () => {
     timeFilterButtons.forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     activeTimeFilter = button.dataset.timeFilter;
+    exactTimeDate = ""; if (timeExactDate) timeExactDate.value = "";
     renderTimeDashboard();
   });
 });
@@ -1839,12 +1889,12 @@ cancelAuthModal.addEventListener("click", closeAuthModalNow);
 authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuthModalNow(); });
 
 StudySync.init({
-  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, meta: syncMeta }),
+  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], meta: syncMeta }),
   applyState: (state) => {
     sessions = state.sessions;
     reviews = state.reviews;
     mocks = state.mocks || [];
-    catalog = { subjects: state.subjects || [], topics: state.topics || [] };
+    catalog = { subjects: state.subjects || [], topics: state.topics || [], subtopics: state.subtopics || [] };
     migrateLegacyCatalogState();
     syncMeta = state.meta;
     StudyStorage.save(sessions);

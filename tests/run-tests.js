@@ -76,4 +76,29 @@ assert.equal(migratedAgain.subjects.length, 1, "nova migração não duplica mat
 assert.equal(migratedAgain.topics.length, 1, "nova migração não duplica subtema");
 assert.equal(migratedAgain.sessions[0].subjectId, migrated.sessions[0].subjectId, "IDs permanecem estáveis");
 
-console.log("OK: 43 verificações de revisão v1.2, merge, tombstones, catálogo, IDs e regressão de renderização.");
+const legacyTopicOnly = catalogEngine.migrate({
+  sessions: [{ id: "legacy", subject: "Português", topic: "Crase", updatedAt: 1 }],
+  reviews: [], mocks: [], subjects: [], topics: [], subtopics: []
+}, () => `legacy-${++idCounter}`, 300);
+assert.equal(legacyTopicOnly.sessions[0].subtopicId, undefined, "registro antigo permanece válido sem subtema");
+assert.equal(legacyTopicOnly.topics[0].name, "Crase", "tema legado não é convertido em subtema");
+
+const appText = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
+const backendText = fs.readFileSync(path.join(root, "backend/Code.gs"), "utf8");
+const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");
+assert.match(htmlText, /id="performanceDetailsButton"/, "Ver detalhes possui alvo acionável");
+assert.match(appText, /topic-analysis-panel.*scrollIntoView/, "Ver detalhes navega para desempenho detalhado");
+assert.match(htmlText, /id="timeExactDate"/, "banco de horas aceita data específica");
+assert.match(appText, /activeTimeFilter === "exact".*session\.date === exactTimeDate/, "filtro exato isola o dia selecionado");
+assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
+assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
+assert.match(appText, /catalog\.subtopics.*topicId/, "catálogo mantém terceiro nível por ID do tema");
+assert.match(appText, /if\(type==="subject"\).*catalog\.topics.*catalog\.subtopics/s, "arquivamento de matéria arquiva descendentes");
+assert.match(appText, /if\(type==="topic"\).*catalog\.subtopics/s, "arquivamento de tema arquiva subtemas");
+assert.match(backendText, /subtopics: \{ name: 'Subtopics'/, "Apps Script cria somente a aba Subtopics quando necessária");
+assert.match(backendText, /subtopicId/, "Apps Script suporta subtopicId retrocompatível");
+assert.match(backendText, /const missing = spec\.headers\.filter/, "migração acrescenta cabeçalhos ausentes por nome");
+assert.doesNotMatch(backendText, /clearContents\(/, "migração de planilha nunca limpa dados existentes");
+assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /subtopicTombstones/, "sincronização inclui tombstones de subtemas");
+
+console.log("OK: 55 verificações de revisão v1.2, merge, tombstones, catálogo, IDs, subtemas e regressão de renderização.");

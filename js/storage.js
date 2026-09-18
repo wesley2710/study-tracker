@@ -79,11 +79,12 @@ const SyncStorage = {
         mockTombstones: value.mockTombstones || {},
         subjectTombstones: value.subjectTombstones || {},
         topicTombstones: value.topicTombstones || {},
+        subtopicTombstones: value.subtopicTombstones || {},
         lastSyncAt: value.lastSyncAt || null
       };
     } catch (error) {
       console.error("Erro ao carregar metadados de sincronização:", error);
-      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, lastSyncAt: null };
+      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: null };
     }
   },
   save(value) {
@@ -120,8 +121,8 @@ const MockStorage = {
 const CATALOG_STORAGE_KEY = "studyTracker.catalog.v1";
 const CatalogStorage = {
   load() {
-    try { const data = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "{}"); return { subjects: Array.isArray(data.subjects) ? data.subjects : [], topics: Array.isArray(data.topics) ? data.topics : [] }; }
-    catch (error) { console.error("Erro ao carregar catálogo:", error); return { subjects: [], topics: [] }; }
+    try { const data = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "{}"); return { subjects: Array.isArray(data.subjects) ? data.subjects : [], topics: Array.isArray(data.topics) ? data.topics : [], subtopics: Array.isArray(data.subtopics) ? data.subtopics : [] }; }
+    catch (error) { console.error("Erro ao carregar catálogo:", error); return { subjects: [], topics: [], subtopics: [] }; }
   },
   save(catalog) { localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog)); },
   clear() { localStorage.removeItem(CATALOG_STORAGE_KEY); }
