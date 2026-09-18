@@ -29,7 +29,7 @@ const ReviewEngine = {
   },
 
   addDays(isoDate, days) {
-    const date = new Date(`${isoDate}T12:00:00`);
+    const date = new Date(`${String(isoDate || "").slice(0, 10)}T12:00:00`);
     date.setDate(date.getDate() + days);
     return this.toISODate(date);
   },

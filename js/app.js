@@ -157,7 +157,7 @@ function toISODate(date = new Date()) {
 
 function formatDate(isoDate) {
   if (!isoDate) return "—";
-  const [year, month, day] = isoDate.split("-");
+  const [year, month, day] = String(isoDate).slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
 }
 

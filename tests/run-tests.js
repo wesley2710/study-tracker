@@ -31,6 +31,7 @@ assert.equal(engine.getNextInterval(65, 30, 0, 20), 7, "60-69% regressa para no 
 assert.equal(engine.getNextInterval(65, 3, 0, 5), 3, "regressão nunca aumenta intervalo de 3 dias");
 assert.equal(engine.getNextInterval(55, 120, 0, 8), 3, "resultado ruim regressa mesmo com menos de 20 questões");
 assert.equal(engine.addDays("2026-01-31", 1), "2026-02-01");
+assert.equal(engine.addDays("2026-01-31T03:00:00.000Z", 1), "2026-02-01", "datas ISO do Google Sheets são normalizadas");
 
 const syncContext = {
   window: { addEventListener() {} }, navigator: { onLine: true },
