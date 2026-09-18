@@ -48,6 +48,7 @@ const learningCountEl = document.querySelector("#learningCount");
 const consolidationCountEl = document.querySelector("#consolidationCount");
 const maintenanceCountEl = document.querySelector("#maintenanceCount");
 const topicAnalysisBody = document.querySelector("#topicAnalysisBody");
+const topicAnalysisSearch = document.querySelector("#topicAnalysisSearch");
 
 const reviewQueueCountEl = document.querySelector("#reviewQueueCount");
 const reviewListEl = document.querySelector("#reviewList");
@@ -216,11 +217,17 @@ function validateSession(data) {
   if (!data.subject) return "Informe a matéria.";
   if (!data.topic) return "Informe o tema.";
   if (!data.date) return "Informe a data do estudo.";
-  if (!Number.isInteger(data.questions) || data.questions <= 0) {
-    return "Questões feitas deve ser um número inteiro maior que zero.";
+  const allowsNoQuestions = data.activityType === "study" && data.questionContext === "study";
+  if (!Number.isInteger(data.questions) || data.questions < 0 || (!allowsNoQuestions && data.questions === 0)) {
+    return allowsNoQuestions
+      ? "Questões feitas deve ser um número inteiro igual ou maior que zero."
+      : "Informe pelo menos uma questão para bateria independente ou revisão.";
   }
   if (!Number.isInteger(data.correct) || data.correct < 0) {
     return "Acertos deve ser um número inteiro igual ou maior que zero.";
+  }
+  if (data.questions === 0 && data.correct !== 0) {
+    return "Sem questões feitas, a quantidade de acertos também deve ser zero.";
   }
   if (data.correct > data.questions) {
     return "A quantidade de acertos não pode ser maior que o total de questões.";
@@ -235,8 +242,8 @@ function updateAccuracyPreview() {
   const { questions, correct } = getFormValues();
 
   if (!questions || questions < 1 || !Number.isFinite(correct)) {
-    accuracyPreview.textContent = "0%";
-    formHint.textContent = editingId ? "Editando registro existente." : "Preencha os dados da sessão.";
+    accuracyPreview.textContent = "—";
+    formHint.textContent = editingId ? "Editando registro existente." : "Sem questões, a sessão será salva sem afetar seu desempenho.";
     return;
   }
 
@@ -262,7 +269,7 @@ function getFilteredSessions() {
   if (!term) return [...sessions];
 
   return sessions.filter((session) => {
-    const haystack = `${session.subject} ${session.topic} ${session.date}`.toLowerCase();
+    const haystack = `${session.subject || ""} ${session.topic || ""} ${session.subtopic || ""} ${session.date || ""}`.toLowerCase();
     return haystack.includes(term);
   });
 }
@@ -285,8 +292,9 @@ function renderHistory() {
   }
 
   historyBody.innerHTML = filtered.map((session) => {
-    const percentage = (session.correct / session.questions) * 100;
-    const status = classify(percentage);
+    const hasQuestions = Number(session.questions) > 0;
+    const percentage = hasQuestions ? (session.correct / session.questions) * 100 : null;
+    const status = hasQuestions ? classify(percentage) : null;
 
     return `
       <tr>
@@ -297,8 +305,8 @@ function renderHistory() {
         <td>${formatNumber(session.correct)}</td>
         <td>${formatDuration(session.durationSeconds || 0)}</td>
         <td><span class="context-badge">${getQuestionContextLabel(session)}</span></td>
-        <td><strong>${formatPercent(percentage)}</strong></td>
-        <td><span class="badge ${status.className}">${status.label}</span></td>
+        <td><strong>${hasQuestions ? formatPercent(percentage) : "—"}</strong></td>
+        <td>${status ? `<span class="badge ${status.className}">${status.label}</span>` : "—"}</td>
         <td>
           <div class="row-actions">
             <button class="table-button" data-action="edit" data-id="${session.id}">Editar</button>
@@ -854,7 +862,7 @@ function buildReviewSchedule() {
 
     let lastDate = latestStudySession?.date || topic.latestDate;
     let lastPercentage = latestStudySession
-      ? (latestStudySession.correct / latestStudySession.questions) * 100
+      ? (Number(latestStudySession.questions) > 0 ? (latestStudySession.correct / latestStudySession.questions) * 100 : topic.percentage)
       : topic.percentage;
     let previousInterval = null;
 
@@ -1145,7 +1153,7 @@ function aggregateTopics() {
     current.correct += session.correct;
     current.durationSeconds += Number(session.durationSeconds || 0);
     current.sessions += 1;
-    current.percentages.push((session.correct / session.questions) * 100);
+    if (Number(session.questions) > 0) current.percentages.push((session.correct / session.questions) * 100);
     const context = session.questionContext || (session.activityType === "review" ? "review" : "study");
     if (context === "independent" || context === "review") {
       current.diagnosticQuestions += session.questions;
@@ -1161,13 +1169,14 @@ function aggregateTopics() {
   });
 
   return [...topicMap.values()].map((item) => {
+    // A porcentagem exibida deve usar a mesma base das colunas Questões e Acertos.
+    // Sessões sem questões somam tempo/estudo, mas não entram no cálculo de desempenho.
+    const percentage = item.questions > 0 ? (item.correct / item.questions) * 100 : null;
     const evidenceQuestions = item.diagnosticQuestions || item.questions;
-    const evidenceCorrect = item.diagnosticQuestions ? item.diagnosticCorrect : item.correct;
     const evidenceSessions = item.diagnosticQuestions ? item.diagnosticSessions : item.sessions;
-    const percentage = evidenceQuestions ? (evidenceCorrect / evidenceQuestions) * 100 : 0;
     const confidence = getConfidence(evidenceQuestions, evidenceSessions);
-    const mastery = getMasteryState(percentage, confidence, evidenceQuestions);
-    const priorityScore = getPriorityScore(percentage, confidence, evidenceQuestions);
+    const mastery = getMasteryState(percentage, confidence, item.questions);
+    const priorityScore = getPriorityScore(percentage, confidence, item.questions);
 
     return {
       ...item,
@@ -1190,6 +1199,7 @@ function getConfidence(questions, sessionCount) {
 }
 
 function getMasteryState(percentage, confidence, questions) {
+  if (!questions || !Number.isFinite(percentage)) return { label: "Sem questões", className: "learning" };
   if (percentage >= 90 && confidence.className === "high") {
     return { label: "Manutenção", className: "maintenance" };
   }
@@ -1202,6 +1212,7 @@ function getMasteryState(percentage, confidence, questions) {
 }
 
 function getPriorityScore(percentage, confidence, questions) {
+  if (!questions || !Number.isFinite(percentage)) return 0;
   const performanceFactor = Math.max(0, 100 - percentage);
   const confidencePenalty = confidence.className === "low" ? 15 : confidence.className === "medium" ? 7 : 0;
   const samplePenalty = questions < 20 ? 10 : 0;
@@ -1216,7 +1227,7 @@ function getPriorityLabel(score) {
 
 function renderTopicAnalytics() {
   const topics = aggregateTopics()
-    .sort((a, b) => b.priorityScore - a.priorityScore || a.percentage - b.percentage);
+    .sort((a, b) => b.priorityScore - a.priorityScore || (a.percentage ?? 101) - (b.percentage ?? 101));
 
   if (!topics.length) {
     weakTopicsCountEl.textContent = "0";
@@ -1271,7 +1282,25 @@ function renderTopicAnalytics() {
     `).join("");
   }
 
-  topicAnalysisBody.innerHTML = topics.map((item) => {
+  const analysisTerm = topicAnalysisSearch?.value.trim().toLowerCase() || "";
+  const visibleTopics = analysisTerm
+    ? topics.filter((item) => `${item.subject || ""} ${item.topic || ""} ${item.subtopic || ""}`.toLowerCase().includes(analysisTerm))
+    : topics;
+
+  if (!visibleTopics.length) {
+    topicAnalysisBody.innerHTML = `
+      <tr class="empty-table-row">
+        <td colspan="9">
+          <div class="empty-state">
+            <strong>Nenhum resultado encontrado</strong>
+            <span>Tente buscar outra matéria, tema ou subtema.</span>
+          </div>
+        </td>
+      </tr>`;
+    return;
+  }
+
+  topicAnalysisBody.innerHTML = visibleTopics.map((item) => {
     const priority = getPriorityLabel(item.priorityScore);
 
     return `
@@ -1281,7 +1310,7 @@ function renderTopicAnalytics() {
         <td>${formatNumber(item.questions)}</td>
         <td>${formatNumber(item.correct)}</td>
         <td>${formatDuration(item.durationSeconds)}</td>
-        <td><strong>${formatPercent(item.percentage)}</strong></td>
+        <td><strong>${Number.isFinite(item.percentage) ? formatPercent(item.percentage) : "—"}</strong></td>
         <td><span class="confidence-badge ${item.confidence.className}">${item.confidence.label}</span></td>
         <td><span class="state-badge ${item.mastery.className}">${item.mastery.label}</span></td>
         <td><span class="priority-badge ${priority.className}">${priority.label}</span></td>
@@ -1772,6 +1801,7 @@ newStudyButton.addEventListener("click", () => {
 });
 
 searchInput.addEventListener("input", renderHistory);
+if (topicAnalysisSearch) topicAnalysisSearch.addEventListener("input", renderTopicAnalytics);
 
 
 
@@ -1819,7 +1849,28 @@ timerFinish.addEventListener("click", finishTimer);
 timerCancel.addEventListener("click", cancelTimer);
 
 
-if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+function setCollapsibleExpanded(targetId, expanded) {
+  const content = document.getElementById(targetId);
+  const button = document.querySelector(`[data-collapse-target="${targetId}"]`);
+  if (!content || !button) return;
+  content.hidden = !expanded;
+  button.setAttribute("aria-expanded", String(expanded));
+  const label = button.querySelector("span:first-child");
+  if (label) label.textContent = expanded ? "Recolher" : "Expandir";
+}
+
+document.querySelectorAll("[data-collapse-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const targetId = button.dataset.collapseTarget;
+    const expanded = button.getAttribute("aria-expanded") === "true";
+    setCollapsibleExpanded(targetId, !expanded);
+  });
+});
+
+if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => {
+  setCollapsibleExpanded("topicAnalysisContent", true);
+  document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 if (timeExactDate) timeExactDate.addEventListener("change", () => { if (!timeExactDate.value) return; exactTimeDate = timeExactDate.value; activeTimeFilter = "exact"; timeFilterButtons.forEach((item) => item.classList.remove("active")); renderTimeDashboard(); });
 timeFilterButtons.forEach((button) => {
   button.addEventListener("click", () => {

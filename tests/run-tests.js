@@ -101,4 +101,14 @@ assert.match(backendText, /const missing = spec\.headers\.filter/, "migração a
 assert.doesNotMatch(backendText, /clearContents\(/, "migração de planilha nunca limpa dados existentes");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /subtopicTombstones/, "sincronização inclui tombstones de subtemas");
 
-console.log("OK: 55 verificações de revisão v1.2, merge, tombstones, catálogo, IDs, subtemas e regressão de renderização.");
+
+// Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.
+assert.match(appSource, /filtered\.slice\(0, 8\)/, "fila renderiza no máximo os 8 itens mais próximos do filtro");
+assert.match(appSource, /activeReviewFilter === "upcoming"[\s\S]*item\.status === "upcoming"/, "Próximas inclui qualquer data futura; não existe janela fixa de 3 ou 5 dias");
+assert.equal(Number(((43 / 45) * 100).toFixed(1)), 95.6, "43 acertos em 45 questões corresponde a 95,6%");
+assert.match(appSource, /item\.questions > 0 \? \(item\.correct \/ item\.questions\) \* 100 : null/, "desempenho detalhado usa acertos acumulados sobre questões acumuladas");
+assert.match(appSource, /allowsNoQuestions = data\.activityType === "study" && data\.questionContext === "study"/, "estudo comum pode ser salvo sem questões");
+assert.match(appSource, /data\.questions === 0 && data\.correct !== 0/, "sessão sem questões não aceita acertos positivos");
+assert.match(appSource, /Number\.isFinite\(item\.percentage\) \? formatPercent\(item\.percentage\) : "—"/, "assunto sem questões exibe traço em vez de 0%");
+
+console.log("OK: 62 verificações de revisão, fila, desempenho acumulado, estudo sem questões, merge, catálogo e renderização.");

@@ -223,11 +223,11 @@
                   <small class="field-note">Use apenas quando precisar dividir o tema em assuntos revisáveis menores.</small>
                 </label>
                 <label>
-                  <span>Questões feitas</span>
-                  <input type="number" min="1" name="questions" placeholder="30" />
+                  <span>Questões feitas <small>(opcional durante o estudo)</small></span>
+                  <input type="number" min="0" name="questions" placeholder="30" />
                 </label>
                 <label>
-                  <span>Acertos</span>
+                  <span>Acertos <small>(opcional se não houve questões)</small></span>
                   <input type="number" min="0" name="correct" placeholder="21" />
                 </label>
                 <label>
@@ -368,13 +368,17 @@
 
         <section class="reviews-workspace">
           <article class="panel">
-            <div class="panel-header">
+            <div class="panel-header collapsible-header">
               <div>
                 <span class="panel-kicker">Agenda adaptativa</span>
                 <h3>Próximas revisões por subtema</h3>
               </div>
+              <button type="button" class="collapse-toggle" data-collapse-target="reviewScheduleContent" aria-expanded="false">
+                <span>Expandir</span><span class="collapse-chevron" aria-hidden="true">⌄</span>
+              </button>
             </div>
 
+            <div id="reviewScheduleContent" class="collapsible-content" hidden>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -399,6 +403,7 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
             </div>
           </article>
 
@@ -484,13 +489,20 @@
         </section>
 
         <section class="panel topic-analysis-panel">
-          <div class="panel-header">
+          <div class="panel-header collapsible-header">
             <div>
               <span class="panel-kicker">Análise por assunto</span>
               <h3>Desempenho detalhado</h3>
             </div>
+            <button type="button" class="collapse-toggle" data-collapse-target="topicAnalysisContent" aria-expanded="false">
+              <span>Expandir</span><span class="collapse-chevron" aria-hidden="true">⌄</span>
+            </button>
           </div>
 
+          <div id="topicAnalysisContent" class="collapsible-content" hidden>
+            <div class="table-toolbar">
+              <input id="topicAnalysisSearch" class="search-input" type="search" placeholder="Buscar matéria, tema ou subtema..." aria-label="Filtrar desempenho detalhado" />
+            </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -517,6 +529,7 @@
                 </tr>
               </tbody>
             </table>
+          </div>
           </div>
         </section>
 
@@ -583,16 +596,20 @@
         </section>
 
         <section class="panel history-panel" id="historico">
-          <div class="panel-header">
+          <div class="panel-header collapsible-header">
             <div>
               <span class="panel-kicker">Registros recentes</span>
               <h3>Histórico de estudos</h3>
             </div>
-            <div class="table-actions">
-              <input id="searchInput" class="search-input" type="search" placeholder="Buscar matéria ou subtema..." />
-            </div>
+            <button type="button" class="collapse-toggle" data-collapse-target="historyContent" aria-expanded="false">
+              <span>Expandir</span><span class="collapse-chevron" aria-hidden="true">⌄</span>
+            </button>
           </div>
 
+          <div id="historyContent" class="collapsible-content" hidden>
+            <div class="table-toolbar">
+              <input id="searchInput" class="search-input" type="search" placeholder="Buscar matéria, tema ou subtema..." />
+            </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -621,7 +638,8 @@
               </tbody>
             </table>
           </div>
-        </section>
+                  </div>
+</section>
       </section>
     </main>
   </div>
