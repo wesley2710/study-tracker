@@ -408,13 +408,17 @@
           </article>
 
           <article class="panel">
-            <div class="panel-header">
+            <div class="panel-header collapsible-header">
               <div>
                 <span class="panel-kicker">Histórico</span>
                 <h3>Revisões concluídas</h3>
               </div>
+              <button type="button" class="collapse-toggle" data-collapse-target="reviewHistoryContent" aria-expanded="false">
+                <span>Expandir</span><span class="collapse-chevron" aria-hidden="true">⌄</span>
+              </button>
             </div>
 
+            <div id="reviewHistoryContent" class="collapsible-content" hidden>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -439,6 +443,7 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
             </div>
           </article>
         </section>
