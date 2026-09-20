@@ -59,4 +59,4 @@ Matérias e subtemas agora são cadastrados uma única vez e possuem IDs persist
 
 ## V1.2 — Motor de revisão adaptativa
 
-A primeira revisão é sempre agendada em 3 dias. Somente sessões com contexto de revisão podem alterar intervalos. O avanço exige ao menos 20 questões e 90% de acerto, percorre um único estágio por revisão e continua em passos de 30 dias após 60, sem teto. Resultados entre 70% e 89,99% mantêm o intervalo; entre 60% e 69,99% regressam para no máximo 7 dias; abaixo de 60% regressam para 3 dias.
+A primeira revisão é sempre agendada em 3 dias. Somente sessões com contexto de revisão podem alterar intervalos. O avanço exige ao menos 10 questões e 90% de acerto, percorre um único estágio por revisão e continua em passos de 30 dias após 60, sem teto. Resultados entre 70% e 89,99% mantêm o intervalo; entre 60% e 69,99% regressam para no máximo 7 dias; abaixo de 60% regressam para 3 dias.

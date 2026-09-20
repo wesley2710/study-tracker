@@ -1,7 +1,7 @@
 const ReviewEngine = {
   intervals: [3, 7, 15, 30, 45, 60],
   initialInterval: 3,
-  minimumQuestionsToAdvance: 20,
+  minimumQuestionsToAdvance: 10,
 
   getInitialInterval() {
     return this.initialInterval;
