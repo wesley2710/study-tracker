@@ -28,8 +28,29 @@ const ReviewEngine = {
     return this.getAdvanceInterval(current);
   },
 
+  normalizeISODate(value) {
+    const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : "";
+  },
+
+  isLaterRecord(candidate, baseline) {
+    if (!candidate || !baseline) return false;
+    const candidateDate = this.normalizeISODate(candidate.date);
+    const baselineDate = this.normalizeISODate(baseline.date);
+    if (candidateDate !== baselineDate) return candidateDate > baselineDate;
+    const candidateTimestamp = Number(candidate.updatedAt || candidate.createdAt || 0);
+    const baselineTimestamp = Number(baseline.updatedAt || baseline.createdAt || 0);
+    return candidateTimestamp > baselineTimestamp;
+  },
+
+  shouldResetCycle(session, latestReview) {
+    if (!session || !latestReview) return false;
+    const isNormalStudy = session.activityType !== "review" && (session.questionContext || "study") === "study";
+    return isNormalStudy && this.isLaterRecord(session, latestReview);
+  },
+
   addDays(isoDate, days) {
-    const date = new Date(`${String(isoDate || "").slice(0, 10)}T12:00:00`);
+    const date = new Date(`${this.normalizeISODate(isoDate)}T12:00:00`);
     date.setDate(date.getDate() + days);
     return this.toISODate(date);
   },

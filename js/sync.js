@@ -6,6 +6,18 @@ const StudySync = (() => {
 
   const timestamp = (item) => Number(item.deletedAt || item.updatedAt || item.createdAt || 0);
 
+  function normalizeISODate(value) {
+    const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : value;
+  }
+
+  function normalizeRecordDates(records) {
+    return (records || []).map((record) => {
+      if (!record || !("date" in record)) return record;
+      return { ...record, date: normalizeISODate(record.date) };
+    });
+  }
+
   // Last-write-wins por id. Tombstones evitam que exclusões reapareçam.
   function mergeRecords(localRecords, remoteRecords, tombstones) {
     const merged = new Map();
@@ -32,15 +44,15 @@ const StudySync = (() => {
     try {
       const local = adapter.getState();
       const remote = await StudyApi.getAll();
-      const sessions = mergeRecords(local.sessions, remote.sessions || [], local.meta.sessionTombstones);
-      const reviews = mergeRecords(local.reviews, remote.reviews || [], local.meta.reviewTombstones);
-      const mocks = mergeRecords(local.mocks || [], remote.mocks || [], local.meta.mockTombstones || {});
+      const sessions = mergeRecords(normalizeRecordDates(local.sessions), normalizeRecordDates(remote.sessions), local.meta.sessionTombstones);
+      const reviews = mergeRecords(normalizeRecordDates(local.reviews), normalizeRecordDates(remote.reviews), local.meta.reviewTombstones);
+      const mocks = mergeRecords(normalizeRecordDates(local.mocks), normalizeRecordDates(remote.mocks), local.meta.mockTombstones || {});
       const subjects = mergeRecords(local.subjects || [], remote.subjects || [], local.meta.subjectTombstones || {});
       const topics = mergeRecords(local.topics || [], remote.topics || [], local.meta.topicTombstones || {});
       const subtopics = mergeRecords(local.subtopics || [], remote.subtopics || [], local.meta.subtopicTombstones || {});
       const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, subtopics, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {}, subtopicTombstones: local.meta.subtopicTombstones || {} });
       const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: Date.now() };
-      adapter.applyState({ sessions: mergeRecords(sessions, result.sessions || [], {}), reviews: mergeRecords(reviews, result.reviews || [], {}), mocks: mergeRecords(mocks, result.mocks || [], {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), meta: nextMeta });
+      adapter.applyState({ sessions: mergeRecords(sessions, normalizeRecordDates(result.sessions), {}), reviews: mergeRecords(reviews, normalizeRecordDates(result.reviews), {}), mocks: mergeRecords(mocks, normalizeRecordDates(result.mocks), {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), meta: nextMeta });
       setStatus("synced", new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (error) {
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));
@@ -63,5 +75,5 @@ const StudySync = (() => {
     window.addEventListener("offline", () => setStatus("offline"));
     run();
   }
-  return { init, run, mergeRecords };
+  return { init, run, mergeRecords, normalizeISODate, normalizeRecordDates };
 })();

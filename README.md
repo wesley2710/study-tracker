@@ -60,3 +60,7 @@ Matérias e subtemas agora são cadastrados uma única vez e possuem IDs persist
 ## V1.2 — Motor de revisão adaptativa
 
 A primeira revisão é sempre agendada em 3 dias. Somente sessões com contexto de revisão podem alterar intervalos. O avanço exige ao menos 10 questões e 90% de acerto, percorre um único estágio por revisão e continua em passos de 30 dias após 60, sem teto. Resultados entre 70% e 89,99% mantêm o intervalo; entre 60% e 69,99% regressam para no máximo 7 dias; abaixo de 60% regressam para 3 dias.
+
+Ao registrar um novo estudo normal de um assunto que já possua revisões, a agenda desse assunto inicia um novo ciclo em 3 dias. O histórico anterior, as questões, o tempo estudado e as estatísticas são preservados. Baterias independentes e sessões de revisão não reiniciam o ciclo.
+
+As datas recebidas da planilha são normalizadas durante a sincronização. Assim, sessões registradas no celular continuam aparecendo corretamente nos filtros do banco de horas no computador, sem alterar a duração informada.

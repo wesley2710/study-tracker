@@ -538,13 +538,14 @@ function resetTimerAfterSave() {
 }
 
 function sessionInTimeFilter(session) {
-  if (activeTimeFilter === "exact") return Boolean(exactTimeDate) && session.date === exactTimeDate;
+  const sessionDateValue = ReviewEngine.normalizeISODate(session.date);
+  if (activeTimeFilter === "exact") return Boolean(exactTimeDate) && sessionDateValue === exactTimeDate;
   if (activeTimeFilter === "all") return true;
-  const sessionDate = new Date(`${session.date}T00:00:00`);
+  const sessionDate = new Date(`${sessionDateValue}T00:00:00`);
   const today = new Date();
   today.setHours(0,0,0,0);
 
-  if (activeTimeFilter === "today") return session.date === toISODate();
+  if (activeTimeFilter === "today") return sessionDateValue === toISODate();
 
   const days = activeTimeFilter === "week" ? 6 : 29;
   const start = new Date(today);
@@ -695,7 +696,7 @@ function getDailySeries(days = 14) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const iso = toISODate(d);
-    const daySessions = sessions.filter((s) => s.date === iso);
+    const daySessions = sessions.filter((s) => ReviewEngine.normalizeISODate(s.date) === iso);
     const questions = daySessions.reduce((sum,s) => sum + s.questions, 0);
     const correct = daySessions.reduce((sum,s) => sum + s.correct, 0);
     const seconds = daySessions.reduce((sum,s) => sum + Number(s.durationSeconds || 0), 0);
@@ -833,7 +834,7 @@ function getTopicKey(subject, topic, subtopic = "") {
 function getCompletedReviewsForTopic(subject, topic, subtopic = "") {
   return reviews
     .filter((r) => r.subject === subject && r.topic === topic && (r.subtopic || "") === (subtopic || ""))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+    .sort((a, b) => ReviewEngine.normalizeISODate(a.date).localeCompare(ReviewEngine.normalizeISODate(b.date)) || Number(a.updatedAt || a.createdAt || 0) - Number(b.updatedAt || b.createdAt || 0));
 }
 
 function getReviewStreak(subject, topic, subtopic = "") {
@@ -858,15 +859,21 @@ function buildReviewSchedule() {
 
     const latestStudySession = sessions
       .filter((s) => s.subject === topic.subject && s.topic === topic.topic && (s.subtopic || "") === (topic.subtopic || ""))
-      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0];
+      .sort((a, b) => ReviewEngine.normalizeISODate(b.date).localeCompare(ReviewEngine.normalizeISODate(a.date)) || Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0];
 
-    let lastDate = latestStudySession?.date || topic.latestDate;
-    let lastPercentage = latestStudySession
-      ? (Number(latestStudySession.questions) > 0 ? (latestStudySession.correct / latestStudySession.questions) * 100 : topic.percentage)
+    const latestNormalStudySession = sessions
+      .filter((s) => s.subject === topic.subject && s.topic === topic.topic && (s.subtopic || "") === (topic.subtopic || "") && s.activityType !== "review" && (s.questionContext || "study") === "study")
+      .sort((a, b) => ReviewEngine.normalizeISODate(b.date).localeCompare(ReviewEngine.normalizeISODate(a.date)) || Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0];
+    const studyStartsNewCycle = ReviewEngine.shouldResetCycle(latestNormalStudySession, latestReview);
+
+    const cycleStudySession = studyStartsNewCycle ? latestNormalStudySession : latestStudySession;
+    let lastDate = cycleStudySession?.date || topic.latestDate;
+    let lastPercentage = cycleStudySession
+      ? (Number(cycleStudySession.questions) > 0 ? (cycleStudySession.correct / cycleStudySession.questions) * 100 : topic.percentage)
       : topic.percentage;
     let previousInterval = null;
 
-    if (latestReview) {
+    if (latestReview && !studyStartsNewCycle) {
       lastDate = latestReview.date;
       lastPercentage = (latestReview.correct / latestReview.questions) * 100;
       previousInterval = latestReview.nextInterval || ReviewEngine.getInitialInterval();
@@ -875,7 +882,7 @@ function buildReviewSchedule() {
     const streak = getReviewStreak(topic.subject, topic.topic, topic.subtopic);
     // Uma revisão concluída já possui o intervalo calculado. Renderizar o
     // dashboard nunca deve avançá-lo novamente; só uma nova revisão progride.
-    const nextInterval = latestReview
+    const nextInterval = latestReview && !studyStartsNewCycle
       ? (latestReview.nextInterval || ReviewEngine.getInitialInterval())
       : ReviewEngine.getInitialInterval();
 

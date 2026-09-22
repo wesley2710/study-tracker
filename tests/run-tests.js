@@ -32,6 +32,11 @@ assert.equal(engine.getNextInterval(65, 3, 0, 5), 3, "regressão nunca aumenta i
 assert.equal(engine.getNextInterval(55, 120, 0, 8), 3, "resultado ruim regressa mesmo com menos de 20 questões");
 assert.equal(engine.addDays("2026-01-31", 1), "2026-02-01");
 assert.equal(engine.addDays("2026-01-31T03:00:00.000Z", 1), "2026-02-01", "datas ISO do Google Sheets são normalizadas");
+const priorReview = { date: "2026-09-18", createdAt: 100 };
+assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "study", questionContext: "study", createdAt: 200 }, priorReview), true, "novo estudo normal reinicia o ciclo");
+assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "study", questionContext: "independent", createdAt: 200 }, priorReview), false, "bateria independente não reinicia o ciclo");
+assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "review", questionContext: "review", createdAt: 200 }, priorReview), false, "revisão não reinicia o próprio ciclo");
+assert.equal(engine.shouldResetCycle({ date: "2026-09-17", activityType: "study", questionContext: "study", createdAt: 200 }, priorReview), false, "estudo anterior à última revisão não reinicia o ciclo");
 
 const syncContext = {
   window: { addEventListener() {} }, navigator: { onLine: true },
@@ -40,6 +45,9 @@ const syncContext = {
 vm.createContext(syncContext);
 vm.runInContext(`${fs.readFileSync(path.join(root, "js/sync.js"), "utf8")}\nthis.sync = StudySync;`, syncContext);
 const merge = syncContext.sync.mergeRecords;
+const normalizedMobileSessions = syncContext.sync.normalizeRecordDates([{ id: "mobile", date: "2026-09-18T03:00:00.000Z", durationSeconds: 2700 }]);
+assert.equal(normalizedMobileSessions[0].date, "2026-09-18", "data vinda do celular é normalizada");
+assert.equal(normalizedMobileSessions[0].durationSeconds, 2700, "normalização preserva o tempo informado no celular");
 assert.equal(merge([{ id: "a", updatedAt: 2, subject: "novo" }], [{ id: "a", updatedAt: 1, subject: "antigo" }], {})[0].subject, "novo");
 assert.equal(merge([{ id: "a", updatedAt: 2 }], [{ id: "a", updatedAt: 3, subject: "remoto" }], {})[0].subject, "remoto");
 assert.equal(merge([{ id: "a", updatedAt: 2 }], [], { a: 3 }).length, 0, "tombstone mais novo vence");
@@ -55,6 +63,8 @@ assert.doesNotMatch(appSource, /latestReview\s*\?\s*ReviewEngine\.getNextInterva
 assert.match(appSource, /if \(session\.activityType !== "review"\)/, "somente sessão de revisão cria ou recalcula Review");
 assert.match(appSource, /questionContext = activityType === "review" \? "review"/, "contexto de revisão é derivado da atividade real");
 assert.match(appSource, /reviewKey = activityType === "review"/, "estudo e bateria independente não recebem vínculo de revisão");
+assert.match(appSource, /ReviewEngine\.shouldResetCycle\(latestNormalStudySession, latestReview\)/, "novo estudo normal posterior reinicia somente a agenda adaptativa");
+assert.match(appSource, /cycleStudySession = studyStartsNewCycle \? latestNormalStudySession : latestStudySession/, "bateria independente posterior não desloca a data-base do ciclo reiniciado");
 
 const catalogContext = {};
 vm.createContext(catalogContext);
@@ -90,7 +100,7 @@ const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.match(htmlText, /id="performanceDetailsButton"/, "Ver detalhes possui alvo acionável");
 assert.match(appText, /topic-analysis-panel.*scrollIntoView/, "Ver detalhes navega para desempenho detalhado");
 assert.match(htmlText, /id="timeExactDate"/, "banco de horas aceita data específica");
-assert.match(appText, /activeTimeFilter === "exact".*session\.date === exactTimeDate/, "filtro exato isola o dia selecionado");
+assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
 assert.match(appText, /catalog\.subtopics.*topicId/, "catálogo mantém terceiro nível por ID do tema");
@@ -112,4 +122,4 @@ assert.match(appSource, /allowsNoQuestions = data\.activityType === "study" && d
 assert.match(appSource, /data\.questions === 0 && data\.correct !== 0/, "sessão sem questões não aceita acertos positivos");
 assert.match(appSource, /Number\.isFinite\(item\.percentage\) \? formatPercent\(item\.percentage\) : "—"/, "assunto sem questões exibe traço em vez de 0%");
 
-console.log("OK: 62 verificações de revisão, fila, desempenho acumulado, estudo sem questões, merge, catálogo e renderização.");
+console.log("OK: verificações de revisão, reinício de ciclo, sincronização móvel, fila, desempenho, merge, catálogo e renderização.");
