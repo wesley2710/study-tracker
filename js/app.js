@@ -122,6 +122,15 @@ const cancelReviewModal = document.querySelector("#cancelReviewModal");
 const reviewDate = document.querySelector("#reviewDate");
 const reviewAccuracyPreview = document.querySelector("#reviewAccuracyPreview");
 const reviewNextIntervalPreview = document.querySelector("#reviewNextIntervalPreview");
+const reviewForecastEl = document.querySelector("#reviewForecast");
+const dailyReviewLimitInput = document.querySelector("#dailyReviewLimit");
+const minimumReviewQuestionsInput = document.querySelector("#minimumReviewQuestions");
+const reviewOutcomeField = document.querySelector("#reviewOutcomeField");
+const postponeReviewModal = document.querySelector("#postponeReviewModal");
+const postponeReviewForm = document.querySelector("#postponeReviewForm");
+const postponeReviewDescription = document.querySelector("#postponeReviewDescription");
+const closePostponeReviewButton = document.querySelector("#closePostponeReview");
+const cancelPostponeReviewButton = document.querySelector("#cancelPostponeReview");
 
 const timerDisplay = document.querySelector("#timerDisplay");
 const timerStatus = document.querySelector("#timerStatus");
@@ -186,6 +195,8 @@ let mockEvolutionChartInstance = null;
 let sessions = StudyStorage.load();
 let editingId = null;
 let reviews = ReviewStorage.load();
+let reviewPlans = ReviewPlanStorage.load();
+let settings = SettingsStorage.load();
 let scheduledReviewKey = null;
 let mocks = MockStorage.load();
 let catalog = CatalogStorage.load();
@@ -205,6 +216,31 @@ let exactTimeDate = '';
 let activeChartPeriod = '30';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
+
+function getReviewSettings() {
+  const record = settings.find((item) => item.id === "review-settings") || {};
+  return {
+    dailyReviewLimit: ReviewPlanner.clamp(record.dailyReviewLimit, 1, 12, 4),
+    minimumQuestions: ReviewPlanner.clamp(record.minimumQuestions, 1, 200, 10)
+  };
+}
+
+function saveReviewSettings() {
+  const now = Date.now();
+  const previous = settings.find((item) => item.id === "review-settings");
+  const record = {
+    id: "review-settings",
+    dailyReviewLimit: ReviewPlanner.clamp(dailyReviewLimitInput.value, 1, 12, 4),
+    minimumQuestions: ReviewPlanner.clamp(minimumReviewQuestionsInput.value, 1, 200, 10),
+    createdAt: previous?.createdAt || now,
+    updatedAt: now
+  };
+  settings = previous ? settings.map((item) => item.id === record.id ? record : item) : [...settings, record];
+  SettingsStorage.save(settings);
+  renderAll();
+  StudySync.run(true);
+  showToast("Configurações de revisão salvas.", "success");
+}
 
 function migrateLegacyCatalogState() {
   const migrated = CatalogEngine.migrate({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics }, createId);
@@ -268,6 +304,8 @@ function getSafetyAppState() {
     subjects: catalog.subjects,
     topics: catalog.topics,
     subtopics: catalog.subtopics || [],
+    reviewPlans,
+    settings,
     meta: syncMeta
   };
 }
@@ -277,6 +315,8 @@ function saveCompleteLocalState() {
   ReviewStorage.save(reviews);
   MockStorage.save(mocks);
   CatalogStorage.save(catalog);
+  ReviewPlanStorage.save(reviewPlans);
+  SettingsStorage.save(settings);
   SyncStorage.save(syncMeta);
   SafetyStorage.save(safetyState);
 }
@@ -329,6 +369,8 @@ function applyRestoredSafetyState(restored, auditLog = null) {
   reviews = restored.reviews;
   mocks = restored.mocks;
   catalog = { subjects: restored.subjects, topics: restored.topics, subtopics: restored.subtopics };
+  reviewPlans = restored.reviewPlans || [];
+  settings = restored.settings || [];
   syncMeta = restored.meta;
   if (auditLog) safetyState.auditLog = auditLog.slice(0, 100);
   saveCompleteLocalState();
@@ -486,6 +528,7 @@ function getFormValues() {
   const date = studyForm.elements.date.value;
   const activityType = studyForm.elements.activityType.value;
   const questionContext = activityType === "review" ? "review" : (studyForm.elements.questionContext?.value || "study");
+  const reviewOutcome = activityType === "review" ? (studyForm.elements.reviewOutcome?.value || "complete") : null;
   const hours = Number(studyForm.elements.hours.value || 0);
   const minutes = Number(studyForm.elements.minutes.value || 0);
   const manualDurationSeconds = (hours * 3600) + (minutes * 60);
@@ -493,7 +536,7 @@ function getFormValues() {
 
   const reviewKey = activityType === "review" ? (scheduledReviewKey || getTopicKey(subject, topic, subtopic)) : null;
 
-  return { subjectId, topicId, subtopicId, subject, topic, subtopic, questions, correct, date, activityType, questionContext, reviewKey, durationSeconds };
+  return { subjectId, topicId, subtopicId, subject, topic, subtopic, questions, correct, date, activityType, questionContext, reviewKey, reviewOutcome, durationSeconds };
 }
 
 function validateSession(data) {
@@ -1349,12 +1392,12 @@ function getReviewStreak(subject, topic, subtopic = "") {
 function buildReviewSchedule() {
   const topics = aggregateTopics();
 
-  return topics.map((topic) => {
+  const baseSchedule = topics.map((topic) => {
     const topicReviews = getCompletedReviewsForTopic(topic.subject, topic.topic, topic.subtopic);
     const latestReview = topicReviews.length ? topicReviews[topicReviews.length - 1] : null;
 
     const latestStudySession = sessions
-      .filter((s) => s.subject === topic.subject && s.topic === topic.topic && (s.subtopic || "") === (topic.subtopic || ""))
+      .filter((s) => s.subject === topic.subject && s.topic === topic.topic && (s.subtopic || "") === (topic.subtopic || "") && s.reviewOutcome !== "partial")
       .sort((a, b) => ReviewEngine.normalizeISODate(b.date).localeCompare(ReviewEngine.normalizeISODate(a.date)) || Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0];
 
     const latestNormalStudySession = sessions
@@ -1395,14 +1438,41 @@ function buildReviewSchedule() {
       subtopic: topic.subtopic || "",
       lastDate,
       lastPercentage,
+      lastQuestions: Number(latestReview?.questions ?? cycleStudySession?.questions ?? topic.questions ?? 0),
       previousInterval,
       interval: nextInterval,
       nextDate,
       status,
       streak,
-      priorityScore: topic.priorityScore
+      priorityScore: topic.priorityScore,
+      intervalReason: latestReview?.intervalReason || ""
     };
-  }).sort((a, b) => a.nextDate.localeCompare(b.nextDate) || b.priorityScore - a.priorityScore);
+  });
+  const reviewSettings = getReviewSettings();
+  return ReviewPlanner.plan(baseSchedule, reviewPlans, {
+    today: toISODate(),
+    capacity: reviewSettings.dailyReviewLimit,
+    minimumQuestions: reviewSettings.minimumQuestions
+  });
+}
+
+function renderReviewForecast() {
+  if (!reviewForecastEl) return;
+  const today = toISODate();
+  const forecast = ReviewPlanner.forecast(buildReviewSchedule(), today, 7);
+  const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
+  reviewForecastEl.innerHTML = forecast.map((day, index) => {
+    const date = new Date(`${day.date}T12:00:00`);
+    return `<div class="forecast-day ${index === 0 ? "today" : ""}">
+      <span>${index === 0 ? "Hoje" : weekday.format(date).replace(".", "")}</span>
+      <strong>${day.count}</strong>
+      <small>${day.count === 1 ? "revisão" : "revisões"}</small>
+      ${day.redistributed ? `<small class="forecast-moved">${day.redistributed} redistribuída${day.redistributed === 1 ? "" : "s"}</small>` : ""}
+    </div>`;
+  }).join("");
+  const reviewSettings = getReviewSettings();
+  dailyReviewLimitInput.value = reviewSettings.dailyReviewLimit;
+  minimumReviewQuestionsInput.value = reviewSettings.minimumQuestions;
 }
 
 function renderReviewQueue() {
@@ -1443,8 +1513,9 @@ function renderReviewQueue() {
         <div>
           <strong>${escapeHtml(item.subtopic || item.topic)}</strong>
           <small>${escapeHtml(item.subject)}${item.subtopic ? ` • ${escapeHtml(item.topic)}` : ""} • ${formatPercent(item.lastPercentage)} • ${formatDate(item.nextDate)}</small>
+          ${item.redistributed ? `<small class="review-plan-note">Prioridade de redistribuição • data original ${formatDate(item.originalDueDate)}</small>` : ""}
         </div>
-        <button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Revisar</button>
+        <div class="review-item-actions"><button class="table-button" data-review-action="postpone" data-review-key="${escapeAttribute(item.key)}">Adiar</button><button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Revisar</button></div>
       </div>`;
   }).join("");
 }
@@ -1474,10 +1545,10 @@ function renderReviewSchedule() {
       <td>${escapeHtml(item.subject)}</td>
       <td>${escapeHtml(item.topic)}</td>
       <td><strong>${formatPercent(item.lastPercentage)}</strong></td>
-      <td>${item.interval} dia${item.interval === 1 ? "" : "s"}</td>
-      <td>${formatDate(item.nextDate)}</td>
+      <td>${item.interval} dia${item.interval === 1 ? "" : "s"}${item.intervalReason ? `<small class="interval-reason">${escapeHtml(item.intervalReason)}</small>` : ""}</td>
+      <td>${formatDate(item.nextDate)}${item.redistributed ? `<small class="interval-reason review-plan-note">Original: ${formatDate(item.originalDueDate)}</small>` : ""}</td>
       <td><span class="review-status ${item.status}">${ReviewEngine.getStatusLabel(item.status)}</span></td>
-      <td><button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Registrar</button></td>
+      <td><div class="review-item-actions"><button class="table-button" data-review-action="postpone" data-review-key="${escapeAttribute(item.key)}">Adiar</button><button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Registrar</button></div></td>
     </tr>
   `).join("");
 }
@@ -1508,7 +1579,7 @@ function renderReviewHistory() {
         <td>${formatNumber(review.questions)}</td>
         <td>${formatNumber(review.correct)}</td>
         <td><strong>${formatPercent(percentage)}</strong></td>
-        <td>${review.nextInterval} dia${review.nextInterval === 1 ? "" : "s"}</td>
+        <td>${review.nextInterval} dia${review.nextInterval === 1 ? "" : "s"}${review.intervalReason ? `<small class="interval-reason">${escapeHtml(review.intervalReason)}</small>` : ""}</td>
       </tr>`;
   }).join("");
 }
@@ -1551,10 +1622,12 @@ function updateReviewPreview() {
   const [subject, topic, subtopic = ""] = key.split("|||");
   const currentStreak = getReviewStreak(subject, topic, subtopic);
   const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions);
+  const reviewSettings = getReviewSettings();
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions);
+  const reason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval);
 
   reviewAccuracyPreview.textContent = formatPercent(percentage);
-  reviewNextIntervalPreview.textContent = `Se concluir agora: próxima revisão em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}.`;
+  reviewNextIntervalPreview.textContent = `Se concluir agora: próxima revisão em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}. ${reason}`;
 }
 
 function saveReviewResult(event) {
@@ -1577,7 +1650,9 @@ function saveReviewResult(event) {
   const currentStreak = getReviewStreak(subject, topic, subtopic);
   const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
   const previousInterval = item?.interval || null;
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions);
+  const reviewSettings = getReviewSettings();
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions);
+  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval);
 
   const now = Date.now();
   const reviewId = createId();
@@ -1597,6 +1672,7 @@ function saveReviewResult(event) {
     date,
     previousInterval,
     nextInterval,
+    intervalReason,
     createdAt: now,
     updatedAt: now
   });
@@ -1626,7 +1702,7 @@ function saveReviewResult(event) {
   closeReviewModalNow();
   renderAll();
   StudySync.run(true);
-  showToast(`Revisão concluída. Próxima em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}.`, "success");
+  showToast(`Revisão concluída. ${intervalReason}`, "success");
 }
 
 function aggregateTopics() {
@@ -1846,6 +1922,8 @@ function syncQuestionContextMode() {
   const isReview = studyForm.elements.activityType.value === "review";
   if (isReview) questionContextEl.value = "review";
   questionContextEl.disabled = isReview;
+  reviewOutcomeField?.classList.toggle("hidden", !isReview);
+  if (!isReview && studyForm.elements.reviewOutcome) studyForm.elements.reviewOutcome.value = "complete";
 }
 
 function normalizeSubjectScores(value) {
@@ -2249,6 +2327,7 @@ function renderAll() {
   renderReviewQueue();
   renderReviewSchedule();
   renderReviewHistory();
+  renderReviewForecast();
   renderTimeDashboard();
   renderSmartStudy();
   renderCharts();
@@ -2284,6 +2363,7 @@ function startScheduledReview(reviewKey) {
   scheduledReviewKey = reviewKey;
   const reviewType = studyForm.querySelector('input[name="activityType"][value="review"]');
   if (reviewType) reviewType.checked = true;
+  if (studyForm.elements.reviewOutcome) studyForm.elements.reviewOutcome.value = "complete";
   const subjectId = item.subjectId || catalog.subjects.find((x) => x.name === item.subject)?.id || "";
   const topicId = item.topicId || catalog.topics.find((x) => x.subjectId === subjectId && x.name === item.topic)?.id || "";
   renderDatalists(subjectId, topicId, item.subtopicId || "");
@@ -2311,6 +2391,7 @@ function startEdit(id) {
   const typeInput = studyForm.querySelector(`input[name="activityType"][value="${session.activityType || "study"}"]`);
   if (typeInput) typeInput.checked = true;
   if (studyForm.elements.questionContext) studyForm.elements.questionContext.value = session.questionContext || (session.activityType === "review" ? "review" : "study");
+  if (studyForm.elements.reviewOutcome) studyForm.elements.reviewOutcome.value = session.reviewOutcome || "complete";
   syncQuestionContextMode();
   studyForm.elements.hours.value = Math.floor((session.durationSeconds || 0) / 3600) || "";
   studyForm.elements.minutes.value = Math.floor(((session.durationSeconds || 0) % 3600) / 60) || "";
@@ -2369,6 +2450,13 @@ function syncReviewRecordForSession(session) {
     }
     return;
   }
+  if (session.reviewOutcome === "partial") {
+    if (existing) {
+      syncMeta.reviewTombstones[existing.id] = Date.now();
+      reviews = reviews.filter((item) => item.id !== existing.id);
+    }
+    return;
+  }
 
   const priorReviews = reviews
     .filter((item) => item.sessionId !== session.id && item.subject === session.subject && item.topic === session.topic && (item.subtopic || "") === (session.subtopic || ""))
@@ -2378,13 +2466,15 @@ function syncReviewRecordForSession(session) {
   const streak = priorReviews.slice(0, 2).every((item) => (item.correct / item.questions) * 100 >= 90)
     ? Math.min(2, priorReviews.length) + 1
     : percentage >= 90 ? 1 : 0;
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions);
+  const reviewSettings = getReviewSettings();
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions, reviewSettings.minimumQuestions);
+  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, session.questions, reviewSettings.minimumQuestions, nextInterval);
   const now = Date.now();
   const record = {
     id: existing?.id || createId(), sessionId: session.id, reviewKey: session.reviewKey || getTopicKey(session.subject, session.topic, session.subtopic || ""),
     subjectId: session.subjectId || null, topicId: session.topicId || null, subtopicId: session.subtopicId || null, subject: session.subject, topic: session.topic, subtopic: session.subtopic || "",
     questions: session.questions, correct: session.correct, date: session.date,
-    previousInterval, nextInterval,
+    previousInterval, nextInterval, intervalReason,
     createdAt: existing?.createdAt || session.createdAt || now,
     updatedAt: now
   };
@@ -2419,7 +2509,7 @@ studyForm.addEventListener("submit", (event) => {
       };
     });
     syncReviewRecordForSession(sessions.find((session) => session.id === editingId));
-    showToast("Sessão atualizada.", "success");
+    showToast(data.reviewOutcome === "partial" ? "Revisão parcial atualizada; a agenda foi mantida." : "Sessão atualizada.", "success");
   } else {
     const newId = createId();
     sessions.push({
@@ -2429,7 +2519,7 @@ studyForm.addEventListener("submit", (event) => {
       updatedAt: Date.now()
     });
     syncReviewRecordForSession(sessions[sessions.length - 1]);
-    showToast("Sessão salva no navegador.", "success");
+    showToast(data.reviewOutcome === "partial" ? "Revisão parcial salva; horas e questões registradas sem avançar o intervalo." : "Sessão salva no navegador.", "success");
   }
 
   StudyStorage.save(sessions);
@@ -2680,7 +2770,48 @@ reviewFilterButtons.forEach((button) => {
   });
 });
 
+function openPostponeReview(reviewKey) {
+  const item = buildReviewSchedule().find((entry) => entry.key === reviewKey);
+  if (!item) return;
+  postponeReviewForm.elements.reviewKey.value = reviewKey;
+  postponeReviewForm.elements.plannedDate.value = ReviewPlanner.addDays(toISODate(), 1);
+  postponeReviewForm.elements.plannedDate.min = toISODate();
+  postponeReviewDescription.textContent = `${item.subject} → ${item.topic}${item.subtopic ? ` → ${item.subtopic}` : ""}. Data atual: ${formatDate(item.nextDate)}.`;
+  postponeReviewModal.classList.remove("hidden");
+}
+
+function closePostponeReview() {
+  postponeReviewModal.classList.add("hidden");
+  postponeReviewForm.reset();
+}
+
+function savePostponement(reviewKey, plannedDate) {
+  const item = buildReviewSchedule().find((entry) => entry.key === reviewKey);
+  if (!item || !plannedDate) return;
+  if (plannedDate < toISODate()) { showToast("Escolha hoje ou uma data futura.", "error"); return; }
+  const now = Date.now();
+  const id = `review-plan:${reviewKey}`;
+  const existing = reviewPlans.find((plan) => plan.id === id);
+  const record = { id, reviewKey, originalDueDate: item.originalDueDate, plannedDate, reason: "manual", createdAt: existing?.createdAt || now, updatedAt: now };
+  reviewPlans = existing ? reviewPlans.map((plan) => plan.id === id ? record : plan) : [...reviewPlans, record];
+  ReviewPlanStorage.save(reviewPlans);
+  closePostponeReview();
+  renderAll();
+  StudySync.run(true);
+  showToast(`Revisão adiada para ${formatDate(plannedDate)} sem ser concluída.`, "success");
+}
+
+if (dailyReviewLimitInput) dailyReviewLimitInput.addEventListener("change", saveReviewSettings);
+if (minimumReviewQuestionsInput) minimumReviewQuestionsInput.addEventListener("change", saveReviewSettings);
+postponeReviewForm?.addEventListener("submit", (event) => { event.preventDefault(); savePostponement(postponeReviewForm.elements.reviewKey.value, postponeReviewForm.elements.plannedDate.value); });
+postponeReviewModal?.querySelectorAll("[data-postpone-days]").forEach((button) => button.addEventListener("click", () => savePostponement(postponeReviewForm.elements.reviewKey.value, ReviewPlanner.addDays(toISODate(), Number(button.dataset.postponeDays)))));
+closePostponeReviewButton?.addEventListener("click", closePostponeReview);
+cancelPostponeReviewButton?.addEventListener("click", closePostponeReview);
+postponeReviewModal?.addEventListener("click", (event) => { if (event.target === postponeReviewModal) closePostponeReview(); });
+
 document.addEventListener("click", (event) => {
+  const postponeButton = event.target.closest("[data-review-action='postpone']");
+  if (postponeButton) { openPostponeReview(postponeButton.dataset.reviewKey); return; }
   const button = event.target.closest("[data-review-action='complete']");
   if (!button) return;
   startScheduledReview(button.dataset.reviewKey);
@@ -2729,7 +2860,7 @@ cancelAuthModal.addEventListener("click", closeAuthModalNow);
 authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuthModalNow(); });
 
 StudySync.init({
-  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], meta: syncMeta }),
+  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], reviewPlans, settings, meta: syncMeta }),
   markPending: () => {
     syncMeta.pendingChanges = Number(syncMeta.pendingChanges || 0) + 1;
     SyncStorage.save(syncMeta);
@@ -2740,12 +2871,16 @@ StudySync.init({
     reviews = state.reviews;
     mocks = state.mocks || [];
     catalog = { subjects: state.subjects || [], topics: state.topics || [], subtopics: state.subtopics || [] };
+    reviewPlans = state.reviewPlans || [];
+    settings = state.settings || [];
     migrateLegacyCatalogState();
     syncMeta = state.meta;
     StudyStorage.save(sessions);
     ReviewStorage.save(reviews);
     MockStorage.save(mocks);
     CatalogStorage.save(catalog);
+    ReviewPlanStorage.save(reviewPlans);
+    SettingsStorage.save(settings);
     SyncStorage.save(syncMeta);
     renderAll();
   },

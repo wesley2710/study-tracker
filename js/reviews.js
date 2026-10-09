@@ -18,14 +18,23 @@ const ReviewEngine = {
     return current + 30;
   },
 
-  getNextInterval(percentage, previousInterval = null, _streak = 0, questionCount = 0) {
+  getNextInterval(percentage, previousInterval = null, _streak = 0, questionCount = 0, minimumQuestions = this.minimumQuestionsToAdvance) {
     const current = Number(previousInterval) || this.initialInterval;
     const questions = Number(questionCount) || 0;
     if (percentage < 60) return 3;
     if (percentage < 70) return Math.min(current, 7);
     if (percentage < 90) return current;
-    if (questions < this.minimumQuestionsToAdvance) return current;
+    if (questions < minimumQuestions) return current;
     return this.getAdvanceInterval(current);
+  },
+
+  explainInterval(percentage, previousInterval, questionCount, minimumQuestions, nextInterval) {
+    const current = Number(previousInterval) || this.initialInterval;
+    if (percentage < 60) return `Retornou para 3 dias porque o desempenho foi ${Math.round(percentage)}%.`;
+    if (percentage < 70) return `Ficou em até 7 dias porque o desempenho foi ${Math.round(percentage)}%.`;
+    if (percentage < 90) return `Manteve ${nextInterval} dias porque o desempenho ficou entre 70% e 89%.`;
+    if (Number(questionCount) < Number(minimumQuestions)) return `Manteve ${current} dias: foram ${questionCount} questões e a meta mínima é ${minimumQuestions}.`;
+    return `Avançou para ${nextInterval} dias porque você acertou ${Math.round(percentage)}% em ${questionCount} questões.`;
   },
 
   normalizeISODate(value) {

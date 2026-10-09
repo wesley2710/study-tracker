@@ -1,5 +1,5 @@
 const SafetyEngine = (() => {
-  const COLLECTIONS = ["sessions", "reviews", "mocks", "subjects", "topics", "subtopics"];
+  const COLLECTIONS = ["sessions", "reviews", "mocks", "subjects", "topics", "subtopics", "reviewPlans", "settings"];
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -15,6 +15,8 @@ const SafetyEngine = (() => {
       subjects: data.subjects || catalog.subjects,
       topics: data.topics || catalog.topics,
       subtopics: data.subtopics || catalog.subtopics,
+      reviewPlans: data.reviewPlans || [],
+      settings: data.settings || [],
       auditLog: Array.isArray(data.auditLog) ? data.auditLog : Array.isArray(backup?.auditLog) ? backup.auditLog : []
     };
   }
@@ -49,7 +51,7 @@ const SafetyEngine = (() => {
   function createBackup(state, auditLog = [], exportedAt = Date.now()) {
     return {
       schemaVersion: 1,
-      appVersion: "1.9.0",
+      appVersion: "2.0.0",
       exportedAt,
       data: {
         sessions: clone(state.sessions || []),
@@ -58,6 +60,8 @@ const SafetyEngine = (() => {
         subjects: clone(state.subjects || []),
         topics: clone(state.topics || []),
         subtopics: clone(state.subtopics || []),
+        reviewPlans: clone(state.reviewPlans || []),
+        settings: clone(state.settings || []),
         auditLog: clone(auditLog || [])
       }
     };
@@ -72,7 +76,9 @@ const SafetyEngine = (() => {
       mocks: "mockTombstones",
       subjects: "subjectTombstones",
       topics: "topicTombstones",
-      subtopics: "subtopicTombstones"
+      subtopics: "subtopicTombstones",
+      reviewPlans: "reviewPlanTombstones",
+      settings: "settingTombstones"
     };
     const result = { meta };
 

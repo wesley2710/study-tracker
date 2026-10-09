@@ -1,11 +1,11 @@
 const SHEETS = {
   sessions: {
     name: 'Sessions',
-    headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'reviewOutcome', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
   },
   reviews: {
     name: 'Reviews',
-    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'intervalReason', 'createdAt', 'updatedAt', 'deletedAt']
   },
   mocks: {
     name: 'Mocks',
@@ -13,7 +13,9 @@ const SHEETS = {
   },
   subjects: { name: 'Subjects', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
   topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
-  subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] }
+  subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
+  reviewPlans: { name: 'ReviewPlans', headers: ['id', 'reviewKey', 'originalDueDate', 'plannedDate', 'reason', 'createdAt', 'updatedAt', 'deletedAt'] },
+  settings: { name: 'Settings', headers: ['id', 'dailyReviewLimit', 'minimumQuestions', 'createdAt', 'updatedAt', 'deletedAt'] }
 };
 
 function doGet(e) {
@@ -69,12 +71,16 @@ function sync_(request) {
     applyTombstones_('subjects', request.subjectTombstones || {});
     applyTombstones_('topics', request.topicTombstones || {});
     applyTombstones_('subtopics', request.subtopicTombstones || {});
+    applyTombstones_('reviewPlans', request.reviewPlanTombstones || {});
+    applyTombstones_('settings', request.settingTombstones || {});
     upsertMany_('sessions', request.sessions || []);
     upsertMany_('reviews', request.reviews || []);
     upsertMany_('mocks', request.mocks || []);
     upsertMany_('subjects', request.subjects || []);
     upsertMany_('topics', request.topics || []);
     upsertMany_('subtopics', request.subtopics || []);
+    upsertMany_('reviewPlans', request.reviewPlans || []);
+    upsertMany_('settings', request.settings || []);
     return getAll_();
   } finally {
     lock.releaseLock();
@@ -82,7 +88,7 @@ function sync_(request) {
 }
 
 function getAll_() {
-  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), subtopics: read_('subtopics', false), serverTime: Date.now() };
+  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), subtopics: read_('subtopics', false), reviewPlans: read_('reviewPlans', false), settings: read_('settings', false), serverTime: Date.now() };
 }
 
 function sheet_(type) {
@@ -122,7 +128,7 @@ function read_(type, includeDeleted) {
     .map(function(row) {
       const item = {};
       spec.headers.forEach(function(header) { item[header] = info.index[header] == null ? '' : row[info.index[header]]; });
-      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore'].forEach(function(key) {
+      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore', 'dailyReviewLimit', 'minimumQuestions'].forEach(function(key) {
         if (item[key] !== '') item[key] = Number(item[key]);
       });
       return item;

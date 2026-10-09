@@ -46,6 +46,25 @@ const ReviewStorage = {
   }
 };
 
+function createArrayStorage(key, label) {
+  return {
+    load() {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(value) ? value : [];
+      } catch (error) {
+        console.error(`Erro ao carregar ${label}:`, error);
+        return [];
+      }
+    },
+    save(value) { localStorage.setItem(key, JSON.stringify(Array.isArray(value) ? value : [])); },
+    clear() { localStorage.removeItem(key); }
+  };
+}
+
+const ReviewPlanStorage = createArrayStorage("studyTracker.reviewPlans.v1", "planejamento de revisões");
+const SettingsStorage = createArrayStorage("studyTracker.settings.v1", "configurações");
+
 
 const TIMER_STORAGE_KEY = "studyTracker.activeTimer.v1";
 
@@ -80,12 +99,14 @@ const SyncStorage = {
         subjectTombstones: value.subjectTombstones || {},
         topicTombstones: value.topicTombstones || {},
         subtopicTombstones: value.subtopicTombstones || {},
+        reviewPlanTombstones: value.reviewPlanTombstones || {},
+        settingTombstones: value.settingTombstones || {},
         lastSyncAt: value.lastSyncAt || null,
         pendingChanges: Number(value.pendingChanges || 0)
       };
     } catch (error) {
       console.error("Erro ao carregar metadados de sincronização:", error);
-      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: null, pendingChanges: 0 };
+      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, reviewPlanTombstones: {}, settingTombstones: {}, lastSyncAt: null, pendingChanges: 0 };
     }
   },
   save(value) {

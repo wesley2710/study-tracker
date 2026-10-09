@@ -37,6 +37,20 @@ assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "study"
 assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "study", questionContext: "independent", createdAt: 200 }, priorReview), false, "bateria independente não reinicia o ciclo");
 assert.equal(engine.shouldResetCycle({ date: "2026-09-19", activityType: "review", questionContext: "review", createdAt: 200 }, priorReview), false, "revisão não reinicia o próprio ciclo");
 assert.equal(engine.shouldResetCycle({ date: "2026-09-17", activityType: "study", questionContext: "study", createdAt: 200 }, priorReview), false, "estudo anterior à última revisão não reinicia o ciclo");
+assert.equal(engine.getNextInterval(95, 15, 0, 8, 8), 30, "meta mínima configurável substitui o limite padrão");
+assert.match(engine.explainInterval(95, 15, 12, 10, 30), /Avançou para 30 dias/, "explicação descreve a progressão aplicada");
+
+const plannerContext = {};
+vm.createContext(plannerContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/review-planner.js"), "utf8")}\nthis.planner = ReviewPlanner;`, plannerContext);
+const planner = plannerContext.planner;
+const overloaded = Array.from({ length: 6 }, (_, index) => ({ key: `r${index}`, nextDate: "2026-10-09", lastDate: "2026-09-01", lastPercentage: 80, lastQuestions: 10 }));
+const planned = planner.plan(overloaded, [], { today: "2026-10-09", capacity: 4, minimumQuestions: 10 });
+assert.equal(planned.filter((item) => item.plannedDate === "2026-10-09").length, 4, "limite diário mantém no máximo quatro revisões");
+assert.equal(planned.filter((item) => item.plannedDate === "2026-10-10").length, 2, "excedente é movido para o dia seguinte");
+assert.equal(planned.filter((item) => item.redistributed).length, 2, "itens deslocados recebem marca de redistribuição");
+const manualPlan = planner.plan(overloaded.slice(0, 2), [{ reviewKey: "r0", originalDueDate: "2026-10-09", plannedDate: "2026-10-12" }], { today: "2026-10-09", capacity: 4, minimumQuestions: 10 });
+assert.equal(manualPlan.find((item) => item.key === "r0").plannedDate, "2026-10-12", "adiamento manual preserva a data escolhida");
 
 const syncContext = {
   window: { addEventListener() {} }, navigator: { onLine: true },
@@ -184,7 +198,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=1\.9\.0/, "motor de segurança é carregado na versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.0\.0/, "motor de segurança é carregado na versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -194,7 +208,7 @@ assert.match(htmlText, /id="catalogSearch"/, "cadastro possui pesquisa por maté
 assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lote");
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
-assert.match(htmlText, /js\/app\.js\?v=1\.9\.0/, "cache do aplicativo foi atualizado para a versão de usabilidade");
+assert.match(htmlText, /js\/app\.js\?v=2\.0\.0/, "cache do aplicativo foi atualizado para a versão de usabilidade");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");

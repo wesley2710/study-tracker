@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.9.2" />
+  <link rel="stylesheet" href="css/style.css?v=2.0.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -201,6 +201,21 @@
           </article>
         </section>
 
+        <section class="panel review-planning-panel" id="planejamento-revisoes">
+          <div class="panel-header review-planning-header">
+            <div>
+              <span class="panel-kicker">Carga de revisão</span>
+              <h3>Previsão dos próximos 7 dias</h3>
+              <small>O excedente é distribuído automaticamente, dando prioridade ao que já foi deslocado.</small>
+            </div>
+            <div class="review-settings">
+              <label><span>Máximo por dia</span><input id="dailyReviewLimit" type="number" min="1" max="12" value="4" /></label>
+              <label><span>Questões para avançar</span><input id="minimumReviewQuestions" type="number" min="1" max="200" value="10" /></label>
+            </div>
+          </div>
+          <div class="review-forecast" id="reviewForecast"></div>
+        </section>
+
         <section class="workspace-grid">
           <article class="panel form-panel" id="registrar">
             <div class="panel-header">
@@ -277,6 +292,14 @@
                     <option value="independent">Bateria independente</option>
                     <option value="review">Revisão programada</option>
                   </select>
+                </label>
+                <label id="reviewOutcomeField" class="hidden">
+                  <span>Resultado da revisão</span>
+                  <select name="reviewOutcome">
+                    <option value="complete">Concluir e avançar intervalo</option>
+                    <option value="partial">Parcial — manter revisão pendente</option>
+                  </select>
+                  <small class="field-note">A revisão parcial conta nas horas e questões, mas não muda a agenda.</small>
                 </label>
               </div>
 
@@ -809,6 +832,28 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="postponeReviewModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="postponeReviewTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Agenda</span><h3 id="postponeReviewTitle">Adiar revisão</h3></div>
+        <button class="icon-button" id="closePostponeReview" type="button" aria-label="Fechar">×</button>
+      </div>
+      <p class="auth-note" id="postponeReviewDescription">Escolha uma nova data sem concluir a revisão.</p>
+      <div class="postpone-quick-actions">
+        <button class="ghost-button" type="button" data-postpone-days="1">Amanhã</button>
+        <button class="ghost-button" type="button" data-postpone-days="3">Em 3 dias</button>
+      </div>
+      <form id="postponeReviewForm">
+        <input type="hidden" name="reviewKey" />
+        <label><span>Escolher data</span><input type="date" name="plannedDate" required /></label>
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelPostponeReview" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Confirmar adiamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="catalogRenameModal">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="catalogRenameTitle">
       <div class="modal-header">
@@ -904,12 +949,13 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=1.9.0"></script>
+  <script src="js/storage.js?v=2.0.0"></script>
   <script src="js/api.js?v=1.1.2"></script>
-  <script src="js/sync.js?v=1.8.0"></script>
-  <script src="js/reviews.js?v=1.4.0"></script>
+  <script src="js/sync.js?v=2.0.0"></script>
+  <script src="js/reviews.js?v=2.0.0"></script>
+  <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=1.5.1"></script>
-  <script src="js/safety.js?v=1.9.0"></script>
-  <script src="js/app.js?v=1.9.0"></script>
+  <script src="js/safety.js?v=2.0.0"></script>
+  <script src="js/app.js?v=2.0.0"></script>
 </body>
 </html>
