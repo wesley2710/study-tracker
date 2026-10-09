@@ -157,3 +157,30 @@ const SafetyStorage = {
   },
   clear() { localStorage.removeItem(SAFETY_STORAGE_KEY); }
 };
+
+const UI_STORAGE_KEY = "studyTracker.ui.v1";
+const UiStorage = {
+  load() {
+    try {
+      const value = JSON.parse(localStorage.getItem(UI_STORAGE_KEY) || "{}");
+      return {
+        dailyGoalMinutes: Math.max(15, Math.min(1440, Number(value.dailyGoalMinutes || 120))),
+        collapsible: value.collapsible && typeof value.collapsible === "object" ? value.collapsible : {},
+        openSubjects: Array.isArray(value.openSubjects) ? value.openSubjects : [],
+        openTopics: Array.isArray(value.openTopics) ? value.openTopics : []
+      };
+    } catch (error) {
+      console.error("Erro ao carregar preferências da interface:", error);
+      return { dailyGoalMinutes: 120, collapsible: {}, openSubjects: [], openTopics: [] };
+    }
+  },
+  save(value) {
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({
+      dailyGoalMinutes: Number(value?.dailyGoalMinutes || 120),
+      collapsible: value?.collapsible || {},
+      openSubjects: Array.isArray(value?.openSubjects) ? value.openSubjects : [],
+      openTopics: Array.isArray(value?.openTopics) ? value.openTopics : []
+    }));
+  },
+  clear() { localStorage.removeItem(UI_STORAGE_KEY); }
+};

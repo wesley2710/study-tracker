@@ -184,7 +184,17 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=1\.8\.0/, "motor de segurança é carregado na versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=1\.9\.0/, "motor de segurança é carregado na versão atual");
+assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
+assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
+assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
+assert.match(htmlText, /id="dailyGoalMinutes"/, "meta diária é configurável");
+assert.match(htmlText, /id="todayAgendaList"/, "revisões atrasadas e de hoje são reunidas na tela inicial");
+assert.match(htmlText, /id="catalogSearch"/, "cadastro possui pesquisa por matéria, tema ou subtema");
+assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lote");
+assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
+assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
+assert.match(htmlText, /js\/app\.js\?v=1\.9\.0/, "cache do aplicativo foi atualizado para a versão de usabilidade");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
@@ -201,6 +211,15 @@ assert.match(appText, /captureUndo\(`Arquivamento de/, "arquivamento cria cópia
 assert.match(appText, /captureUndo\("Mesclagem de temas"\)/, "mesclagem cria cópia automática antes da alteração");
 assert.match(appText, /StudySync\.run\(true\)/, "alterações locais são marcadas como pendentes até sincronizar");
 assert.match(appText, /Selecione um tema/, "vocabulário Matéria → Tema → Subtema foi padronizado");
+assert.match(appText, /function renderTodayDashboard\(/, "resumo Hoje possui renderização própria");
+assert.match(appText, /function archiveSelectedTopics\(/, "arquivamento em lote está implementado");
+assert.match(appText, /function mergeSelectedTopics\(/, "mesclagem em lote valida os temas selecionados");
+assert.match(appText, /function restoreSelectedArchivedItems\(/, "restauração em lote está implementada");
+assert.match(appText, /uiPreferences\.collapsible\[targetId\] = expanded/, "estado dos painéis recolhíveis é memorizado");
+assert.match(appText, /uiPreferences\.openSubjects/, "matérias abertas no cadastro são memorizadas");
+assert.match(fs.readFileSync(path.join(root, "js/storage.js"), "utf8"), /const UiStorage/, "preferências de usabilidade possuem armazenamento local");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm \.form-footer \{ position:sticky/, "botão de salvar permanece acessível no celular");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm input,#studyForm select.*min-height:50px/, "campos do formulário são maiores no celular");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.

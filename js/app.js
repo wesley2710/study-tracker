@@ -8,6 +8,12 @@ const accuracyPreview = document.querySelector("#accuracyPreview");
 const toast = document.querySelector("#toast");
 const searchInput = document.querySelector("#searchInput");
 const historyBody = document.querySelector("#historyBody");
+const historySubjectFilter = document.querySelector("#historySubjectFilter");
+const historyTopicFilter = document.querySelector("#historyTopicFilter");
+const historyContextFilter = document.querySelector("#historyContextFilter");
+const historyStartDate = document.querySelector("#historyStartDate");
+const historyEndDate = document.querySelector("#historyEndDate");
+const clearHistoryFilters = document.querySelector("#clearHistoryFilters");
 const newStudyButton = document.querySelector("#newStudyButton");
 const saveStudyButton = document.querySelector("#saveStudyButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
@@ -21,6 +27,12 @@ const timeExactDate = document.querySelector("#timeExactDate");
 const subjectCatalogForm = document.querySelector("#subjectCatalogForm");
 const catalogList = document.querySelector("#catalogList");
 const catalogSubjectCount = document.querySelector("#catalogSubjectCount");
+const catalogSearch = document.querySelector("#catalogSearch");
+const catalogBulkActions = document.querySelector("#catalogBulkActions");
+const catalogSelectedCount = document.querySelector("#catalogSelectedCount");
+const mergeSelectedTopicsButton = document.querySelector("#mergeSelectedTopics");
+const archiveSelectedTopicsButton = document.querySelector("#archiveSelectedTopics");
+const clearCatalogSelectionButton = document.querySelector("#clearCatalogSelection");
 const subjectPerformance = document.querySelector("#subjectPerformance");
 const syncStatus = document.querySelector("#syncStatus");
 const syncStatusText = document.querySelector("#syncStatusText");
@@ -51,6 +63,10 @@ const archivedItemsModal = document.querySelector("#archivedItemsModal");
 const archivedItemsList = document.querySelector("#archivedItemsList");
 const closeArchivedItemsModal = document.querySelector("#closeArchivedItemsModal");
 const doneArchivedItems = document.querySelector("#doneArchivedItems");
+const archivedBulkActions = document.querySelector("#archivedBulkActions");
+const archivedSelectedCount = document.querySelector("#archivedSelectedCount");
+const restoreSelectedArchivedButton = document.querySelector("#restoreSelectedArchived");
+const clearArchivedSelectionButton = document.querySelector("#clearArchivedSelection");
 const undoLastActionButton = document.querySelector("#undoLastAction");
 const undoActionLabel = document.querySelector("#undoActionLabel");
 const undoActionTime = document.querySelector("#undoActionTime");
@@ -59,6 +75,23 @@ const selectBackupFileButton = document.querySelector("#selectBackupFile");
 const backupFileInput = document.querySelector("#backupFileInput");
 const auditLogList = document.querySelector("#auditLogList");
 const auditCount = document.querySelector("#auditCount");
+const todaySummaryText = document.querySelector("#todaySummaryText");
+const todayStartTimerButton = document.querySelector("#todayStartTimer");
+const todayRegisterStudyButton = document.querySelector("#todayRegisterStudy");
+const todayStudyTime = document.querySelector("#todayStudyTime");
+const dailyGoalMinutesInput = document.querySelector("#dailyGoalMinutes");
+const todayGoalProgressText = document.querySelector("#todayGoalProgressText");
+const todayGoalProgressBar = document.querySelector("#todayGoalProgressBar");
+const todayOverdueCount = document.querySelector("#todayOverdueCount");
+const todayOverdueNote = document.querySelector("#todayOverdueNote");
+const todayDueCount = document.querySelector("#todayDueCount");
+const todayDueNote = document.querySelector("#todayDueNote");
+const todaySuggestionTitle = document.querySelector("#todaySuggestionTitle");
+const todaySuggestionPath = document.querySelector("#todaySuggestionPath");
+const todaySuggestionReason = document.querySelector("#todaySuggestionReason");
+const todayStudySuggestionButton = document.querySelector("#todayStudySuggestion");
+const todayAgendaCount = document.querySelector("#todayAgendaCount");
+const todayAgendaList = document.querySelector("#todayAgendaList");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -162,6 +195,10 @@ let pendingCatalogMergeSubjectId = null;
 let pendingCatalogMergeCorrection = null;
 let syncMeta = SyncStorage.load();
 let safetyState = SafetyStorage.load();
+let uiPreferences = UiStorage.load();
+let catalogTopicSelection = new Set();
+let archivedSelection = new Set();
+let suggestedStudyItem = null;
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let exactTimeDate = '';
@@ -358,10 +395,33 @@ function renderArchivedItems() {
     { type:"topic", title:"Temas", items:catalog.topics.filter((item) => item.archived), path:(item) => subjectsById.get(item.subjectId)?.name || "Matéria não encontrada" },
     { type:"subtopic", title:"Subtemas", items:(catalog.subtopics || []).filter((item) => item.archived), path:(item) => { const topic=topicsById.get(item.topicId); return `${subjectsById.get(topic?.subjectId)?.name || "Matéria"} → ${topic?.name || "Tema"}`; } }
   ];
+  const validKeys = new Set(groups.flatMap((group) => group.items.map((item) => `${group.type}:${item.id}`)));
+  archivedSelection = new Set([...archivedSelection].filter((key) => validKeys.has(key)));
+  archivedSelectedCount.textContent = archivedSelection.size;
+  archivedBulkActions.classList.toggle("hidden", !archivedSelection.size);
   const total = groups.reduce((sum,group) => sum + group.items.length, 0);
   archivedItemsList.innerHTML = total ? groups.filter((group) => group.items.length).map((group) => `
     <section class="archived-group"><strong>${group.title} (${group.items.length})</strong>${group.items.sort((a,b) => a.name.localeCompare(b.name,"pt-BR")).map((item) => `
-      <div class="archived-row"><div><span>${escapeHtml(item.name)}</span><small>${escapeHtml(group.path(item))} • ${catalogImpactSummary(group.type,item.id)}</small></div><button class="ghost-button" type="button" data-restore-type="${group.type}" data-restore-id="${escapeAttribute(item.id)}">Restaurar</button></div>`).join("")}</section>`).join("") : `<div class="empty-state"><strong>Nenhum item arquivado</strong><span>Matérias, temas e subtemas arquivados aparecerão aqui.</span></div>`;
+      <div class="archived-row"><input class="archived-select" type="checkbox" data-archived-key="${group.type}:${escapeAttribute(item.id)}" aria-label="Selecionar ${escapeAttribute(item.name)}" ${archivedSelection.has(`${group.type}:${item.id}`) ? "checked" : ""}/><div><span>${escapeHtml(item.name)}</span><small>${escapeHtml(group.path(item))} • ${catalogImpactSummary(group.type,item.id)}</small></div><button class="ghost-button" type="button" data-restore-type="${group.type}" data-restore-id="${escapeAttribute(item.id)}">Restaurar</button></div>`).join("")}</section>`).join("") : `<div class="empty-state"><strong>Nenhum item arquivado</strong><span>Matérias, temas e subtemas arquivados aparecerão aqui.</span></div>`;
+}
+
+function restoreCatalogRecordInternal(type, id, now) {
+  const items = type === "subject" ? catalog.subjects : type === "topic" ? catalog.topics : catalog.subtopics;
+  const record = items.find((item) => item.id === id && item.archived);
+  if (!record) return null;
+  const restore = (item) => { item.archived = false; item.updatedAt = now; };
+  if (type === "subject") {
+    restore(record);
+    catalog.topics.filter((item) => item.subjectId === id).forEach((topic) => { restore(topic); catalog.subtopics.filter((item) => item.topicId === topic.id).forEach(restore); });
+  } else if (type === "topic") {
+    restore(record);
+    const subject = catalog.subjects.find((item) => item.id === record.subjectId); if (subject) restore(subject);
+    catalog.subtopics.filter((item) => item.topicId === id).forEach(restore);
+  } else {
+    restore(record);
+    const topic = catalog.topics.find((item) => item.id === record.topicId); if (topic) { restore(topic); const subject = catalog.subjects.find((item) => item.id === topic.subjectId); if (subject) restore(subject); }
+  }
+  return record;
 }
 
 function restoreArchivedCatalogRecord(type, id) {
@@ -371,25 +431,39 @@ function restoreArchivedCatalogRecord(type, id) {
   const summary = catalogImpactSummary(type, id);
   if (!window.confirm(`Restaurar “${record.name}”?\n\n${summary}`)) return;
   if (!captureUndo(`Restauração de ${type === "subject" ? "matéria" : type === "topic" ? "tema" : "subtema"}: ${record.name}`)) return;
-  const now = Date.now();
-  const restore = (item) => { item.archived = false; item.updatedAt = now; };
-  if (type === "subject") {
-    restore(record);
-    catalog.topics.filter((item) => item.subjectId === id).forEach((topic) => { restore(topic); (catalog.subtopics || []).filter((item) => item.topicId === topic.id).forEach(restore); });
-  } else if (type === "topic") {
-    restore(record);
-    const subject = catalog.subjects.find((item) => item.id === record.subjectId); if (subject) restore(subject);
-    (catalog.subtopics || []).filter((item) => item.topicId === id).forEach(restore);
-  } else {
-    restore(record);
-    const topic = catalog.topics.find((item) => item.id === record.topicId); if (topic) { restore(topic); const subject = catalog.subjects.find((item) => item.id === topic.subjectId); if (subject) restore(subject); }
-  }
+  restoreCatalogRecordInternal(type, id, Date.now());
   CatalogStorage.save(catalog);
   addAuditEntry("restore", `Cadastro restaurado: ${record.name}`, summary);
   renderAll();
   renderArchivedItems();
   StudySync.run(true);
   showToast("Cadastro restaurado.", "success");
+}
+
+function restoreSelectedArchivedItems() {
+  const selected = [...archivedSelection].map((key) => { const separator=key.indexOf(":"); return { type:key.slice(0,separator), id:key.slice(separator+1) }; });
+  if (!selected.length) return;
+  const subjectIds = new Set(selected.filter((item) => item.type === "subject").map((item) => item.id));
+  const topicIds = new Set(selected.filter((item) => item.type === "topic").map((item) => item.id));
+  const subtopicIds = new Set(selected.filter((item) => item.type === "subtopic").map((item) => item.id));
+  catalog.topics.filter((item) => subjectIds.has(item.subjectId)).forEach((item) => topicIds.add(item.id));
+  catalog.subtopics.filter((item) => topicIds.has(item.topicId)).forEach((item) => subtopicIds.add(item.id));
+  const affected = (item) => subjectIds.has(item.subjectId) || topicIds.has(item.topicId) || subtopicIds.has(item.subtopicId);
+  const affectedSessions = sessions.filter(affected);
+  const affectedReviews = reviews.filter(affected);
+  const totals = { sessions:affectedSessions.length, reviews:affectedReviews.length, questions:affectedSessions.reduce((sum,item)=>sum+Number(item.questions||0),0), durationSeconds:affectedSessions.reduce((sum,item)=>sum+Number(item.durationSeconds||0),0) };
+  const summary = `${totals.sessions} registros relacionados • ${formatDuration(totals.durationSeconds)} • ${formatNumber(totals.questions)} questões • ${totals.reviews} revisões`;
+  if (!window.confirm(`Restaurar ${selected.length} ${selected.length === 1 ? "item selecionado" : "itens selecionados"}?\n\n${summary}\n\nUma cópia automática permitirá desfazer.`)) return;
+  if (!captureUndo(`Restauração em lote de ${selected.length} item(ns)`)) return;
+  const now = Date.now();
+  selected.forEach((item) => restoreCatalogRecordInternal(item.type, item.id, now));
+  addAuditEntry("restore", `${selected.length} cadastro(s) restaurado(s) em lote`, summary);
+  archivedSelection.clear();
+  CatalogStorage.save(catalog);
+  renderAll();
+  renderArchivedItems();
+  StudySync.run(true);
+  showToast("Itens restaurados com sucesso.", "success");
 }
 
 function formatToday() {
@@ -473,13 +547,29 @@ function persistAndRender() {
   StudySync.run(true);
 }
 
+function renderHistoryFilterOptions() {
+  if (!historySubjectFilter || !historyTopicFilter) return;
+  const selectedSubject = historySubjectFilter.value;
+  const selectedTopic = historyTopicFilter.value;
+  const subjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
+  historySubjectFilter.innerHTML = `<option value="">Todas as matérias</option>${subjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
+  if (subjects.some((item) => item.id === selectedSubject)) historySubjectFilter.value = selectedSubject;
+  const topics = catalog.topics.filter((item) => !item.archived && (!historySubjectFilter.value || item.subjectId === historySubjectFilter.value)).sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
+  historyTopicFilter.innerHTML = `<option value="">Todos os temas</option>${topics.map((item) => { const subject=catalog.subjects.find((subjectItem)=>subjectItem.id===item.subjectId); return `<option value="${escapeAttribute(item.id)}">${escapeHtml(historySubjectFilter.value ? item.name : `${subject?.name || "Matéria"} → ${item.name}`)}</option>`; }).join("")}`;
+  if (topics.some((item) => item.id === selectedTopic)) historyTopicFilter.value = selectedTopic;
+}
+
 function getFilteredSessions() {
   const term = searchInput.value.trim().toLowerCase();
-  if (!term) return [...sessions];
-
   return sessions.filter((session) => {
     const haystack = `${session.subject || ""} ${session.topic || ""} ${session.subtopic || ""} ${session.date || ""}`.toLowerCase();
-    return haystack.includes(term);
+    const context = session.questionContext || (session.activityType === "review" ? "review" : "study");
+    return (!term || haystack.includes(term))
+      && (!historySubjectFilter?.value || session.subjectId === historySubjectFilter.value)
+      && (!historyTopicFilter?.value || session.topicId === historyTopicFilter.value)
+      && (!historyContextFilter?.value || context === historyContextFilter.value)
+      && (!historyStartDate?.value || ReviewEngine.normalizeISODate(session.date) >= historyStartDate.value)
+      && (!historyEndDate?.value || ReviewEngine.normalizeISODate(session.date) <= historyEndDate.value);
   });
 }
 
@@ -490,10 +580,10 @@ function renderHistory() {
   if (!filtered.length) {
     historyBody.innerHTML = `
       <tr class="empty-table-row">
-        <td colspan="9">
+        <td colspan="10">
           <div class="empty-state">
             <strong>${sessions.length ? "Nenhum resultado encontrado" : "Nenhuma sessão registrada"}</strong>
-            <span>${sessions.length ? "Tente buscar outro termo." : "Use o formulário acima para adicionar seu primeiro estudo."}</span>
+            <span>${sessions.length ? "Ajuste a busca, matéria, tema, contexto ou período." : "Use o formulário acima para adicionar seu primeiro estudo."}</span>
           </div>
         </td>
       </tr>`;
@@ -509,7 +599,7 @@ function renderHistory() {
       <tr>
         <td>${formatDate(session.date)}</td>
         <td>${escapeHtml(session.subject)}</td>
-        <td>${escapeHtml(session.topic)}</td>
+        <td>${escapeHtml(session.topic)}${session.subtopic ? `<span class="table-subtopic">${escapeHtml(session.subtopic)}</span>` : ""}</td>
         <td>${formatNumber(session.questions)}</td>
         <td>${formatNumber(session.correct)}</td>
         <td>${formatDuration(session.durationSeconds || 0)}</td>
@@ -680,6 +770,7 @@ function renderTimer() {
   timerCancel.classList.toggle("hidden", !exists);
 
   timerStatus.textContent = running ? "Sessão em andamento" : exists ? "Sessão pausada" : "Pronto para iniciar";
+  if (todayStartTimerButton) todayStartTimerButton.textContent = running ? "▶ Cronômetro em andamento" : exists ? "▶ Continuar cronômetro" : "▶ Iniciar cronômetro";
 }
 
 function startTimer() {
@@ -832,8 +923,12 @@ function buildSmartStudyRecommendations() {
     if (topic.questions < 20) score += 8;
 
     return {
+      subjectId: topic.subjectId || null,
+      topicId: topic.topicId || null,
+      subtopicId: topic.subtopicId || null,
       subject: topic.subject,
       topic: topic.topic,
+      subtopic: topic.subtopic || "",
       percentage: topic.percentage,
       confidence: topic.confidence,
       mastery: topic.mastery,
@@ -890,10 +985,70 @@ function renderSmartStudy() {
     </div>
     <div class="insight-stats">
       <div><span>Revisões atrasadas</span><strong>${overdue}</strong></div>
-      <div><span>Subtemas abaixo de 70%</span><strong>${weak}</strong></div>
+      <div><span>Temas/subtemas abaixo de 70%</span><strong>${weak}</strong></div>
       <div><span>Confiança do principal</span><strong>${top.confidence.label}</strong></div>
     </div>
   `;
+}
+
+function openStudyRegistration(item = null, startClock = false) {
+  resetForm();
+  if (item) {
+    const subjectId = item.subjectId || catalog.subjects.find((entry) => entry.name === item.subject)?.id || "";
+    const topicId = item.topicId || catalog.topics.find((entry) => entry.subjectId === subjectId && entry.name === item.topic)?.id || "";
+    const subtopicId = item.subtopicId || catalog.subtopics.find((entry) => entry.topicId === topicId && entry.name === (item.subtopic || ""))?.id || "";
+    renderDatalists(subjectId, topicId, subtopicId);
+  }
+  document.getElementById("registrar").scrollIntoView({ behavior:"smooth", block:"start" });
+  if (startClock && !activeTimer?.running) activeTimer ? resumeTimer() : startTimer();
+  window.setTimeout(() => (item ? studyForm.elements.questions : studyForm.elements.subject).focus(), 350);
+}
+
+function renderTodayDashboard() {
+  if (!todayStudyTime) return;
+  const today = toISODate();
+  const todaySessions = sessions.filter((item) => ReviewEngine.normalizeISODate(item.date) === today);
+  const seconds = todaySessions.reduce((sum,item) => sum + Number(item.durationSeconds || 0), 0);
+  const goalMinutes = Math.max(15, Number(uiPreferences.dailyGoalMinutes || 120));
+  const percentage = Math.min(100, Math.round((seconds / 60 / goalMinutes) * 100));
+  const schedule = buildReviewSchedule();
+  const overdue = schedule.filter((item) => item.status === "overdue");
+  const dueToday = schedule.filter((item) => item.status === "today");
+  const agenda = [...overdue, ...dueToday].slice(0, 6);
+  const recommendation = buildSmartStudyRecommendations()[0] || null;
+  suggestedStudyItem = recommendation;
+
+  dailyGoalMinutesInput.value = goalMinutes;
+  todayStudyTime.textContent = formatDuration(seconds);
+  todayGoalProgressText.textContent = `${percentage}% da meta`;
+  todayGoalProgressBar.style.width = `${percentage}%`;
+  todayOverdueCount.textContent = overdue.length;
+  todayOverdueNote.textContent = overdue.length ? `${overdue.length} ${overdue.length === 1 ? "revisão precisa" : "revisões precisam"} de atenção` : "Tudo em dia";
+  todayDueCount.textContent = dueToday.length;
+  todayDueNote.textContent = dueToday.length ? `${dueToday.length} ${dueToday.length === 1 ? "revisão prevista" : "revisões previstas"}` : "Nenhuma pendência";
+  todayAgendaCount.textContent = overdue.length + dueToday.length;
+  todaySummaryText.textContent = overdue.length
+    ? `Você tem ${overdue.length} ${overdue.length === 1 ? "revisão atrasada" : "revisões atrasadas"}. Comece pela prioridade mais antiga.`
+    : dueToday.length
+      ? `Sua agenda tem ${dueToday.length} ${dueToday.length === 1 ? "revisão" : "revisões"} para hoje.`
+      : percentage >= 100 ? "Meta diária concluída. Você pode adiantar uma prioridade ou encerrar o dia." : "Revisões em dia. Avance na sugestão abaixo ou registre um novo estudo.";
+
+  todayAgendaList.innerHTML = agenda.length ? agenda.map((item) => `
+    <div class="today-agenda-item ${item.status}">
+      <i></i><div><strong>${escapeHtml(item.subtopic || item.topic)}</strong><small>${escapeHtml(item.subject)}${item.subtopic ? ` → ${escapeHtml(item.topic)}` : ""} • ${item.status === "overdue" ? `atrasada desde ${formatDate(item.nextDate)}` : "programada para hoje"}</small></div>
+      <button class="table-button" type="button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Revisar</button>
+    </div>`).join("") : `<div class="empty-state compact"><strong>Nenhuma revisão pendente</strong><span>Você está em dia com a agenda.</span></div>`;
+
+  todayStudySuggestionButton.disabled = !recommendation;
+  if (!recommendation) {
+    todaySuggestionTitle.textContent = "Aguardando seus dados";
+    todaySuggestionPath.textContent = "Registre estudos para receber uma sugestão.";
+    todaySuggestionReason.textContent = "A prioridade considera revisões, desempenho e tempo sem contato.";
+    return;
+  }
+  todaySuggestionTitle.textContent = recommendation.subtopic || recommendation.topic;
+  todaySuggestionPath.textContent = `${recommendation.subject} → ${recommendation.topic}${recommendation.subtopic ? ` → ${recommendation.subtopic}` : ""}`;
+  todaySuggestionReason.textContent = `${getRecommendationReason(recommendation)} • prioridade ${recommendation.score}/100`;
 }
 
 function parseLocalISODate(value) {
@@ -1616,7 +1771,7 @@ function renderTopicAnalytics() {
     weakTopicsListEl.innerHTML = `
       <div class="empty-state compact">
         <strong>Nenhum ponto crítico</strong>
-        <span>Seu desempenho atual não indica subtemas de alta prioridade.</span>
+        <span>Seu desempenho atual não indica temas ou subtemas de alta prioridade.</span>
       </div>`;
   } else {
     weakTopicsListEl.innerHTML = weakTopics.map((item) => `
@@ -1834,20 +1989,44 @@ function deleteMock(id) {
 }
 
 function normalizeCatalogName(value) { return CatalogEngine.normalizeName(value); }
+function saveUiPreferences() { UiStorage.save(uiPreferences); }
+function renderCatalogBulkActions() {
+  const activeIds = new Set(catalog.topics.filter((item) => !item.archived).map((item) => item.id));
+  catalogTopicSelection = new Set([...catalogTopicSelection].filter((id) => activeIds.has(id)));
+  catalogSelectedCount.textContent = catalogTopicSelection.size;
+  catalogBulkActions.classList.toggle("hidden", !catalogTopicSelection.size);
+  mergeSelectedTopicsButton.disabled = catalogTopicSelection.size < 2;
+}
+
 function renderCatalog() {
   if (!catalogList) return;
-  const subjects = [...catalog.subjects].filter((x) => !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
-  catalogSubjectCount.textContent = subjects.length;
-  if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os temas.</span></div>`; return; }
+  const allSubjects = [...catalog.subjects].filter((x) => !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const term = (catalogSearch?.value || "").trim().toLocaleLowerCase("pt-BR");
+  catalogSubjectCount.textContent = allSubjects.length;
+  renderCatalogBulkActions();
+  if (!allSubjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os temas.</span></div>`; return; }
+  const subjects = allSubjects.filter((subject) => {
+    if (!term || subject.name.toLocaleLowerCase("pt-BR").includes(term)) return true;
+    const topicIds = new Set(catalog.topics.filter((topic) => topic.subjectId === subject.id).map((topic) => topic.id));
+    return catalog.topics.some((topic) => topic.subjectId === subject.id && topic.name.toLocaleLowerCase("pt-BR").includes(term))
+      || catalog.subtopics.some((subtopic) => topicIds.has(subtopic.topicId) && subtopic.name.toLocaleLowerCase("pt-BR").includes(term));
+  });
+  if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state catalog-no-results"><strong>Nenhum cadastro encontrado</strong><span>Tente pesquisar outro nome de matéria, tema ou subtema.</span></div>`; return; }
   catalogList.innerHTML = subjects.map((subject) => {
-    const topics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+    const subjectMatches = term && subject.name.toLocaleLowerCase("pt-BR").includes(term);
+    const allTopics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+    const topics = !term || subjectMatches ? allTopics : allTopics.filter((topic) => topic.name.toLocaleLowerCase("pt-BR").includes(term) || catalog.subtopics.some((subtopic) => subtopic.topicId === topic.id && subtopic.name.toLocaleLowerCase("pt-BR").includes(term)));
     const recoverableMerge = CatalogEngine.findLatestMerge({ sessions, reviews, topics: catalog.topics }, subject.id);
-    return `<details class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}">
-      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} tema${topics.length===1?"":"s"}</small></div><div class="catalog-actions">${recoverableMerge ? `<button type="button" class="table-button" data-catalog-action="correct-merge">Corrigir última junção</button>` : ""}${topics.length > 1 ? `<button type="button" class="table-button" data-catalog-action="merge-topics">Mesclar temas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
+    const subjectOpen = term || uiPreferences.openSubjects.includes(subject.id);
+    return `<details class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}" ${subjectOpen ? "open" : ""}>
+      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${allTopics.length} tema${allTopics.length===1?"":"s"}</small></div><div class="catalog-actions">${recoverableMerge ? `<button type="button" class="table-button" data-catalog-action="correct-merge">Corrigir última junção</button>` : ""}${allTopics.length > 1 ? `<button type="button" class="table-button" data-catalog-action="merge-topics">Mesclar temas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
       <div class="catalog-subject-body">
         <div class="catalog-topics">${topics.map((topic)=>{
-          const subtopics=(catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-          return `<details class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}"><summary><span><strong>${escapeHtml(topic.name)}</strong><small>${subtopics.length} subtema${subtopics.length===1?"":"s"}</small></span><div><button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></summary><div class="catalog-subtopic-body"><div class="catalog-subtopics">${subtopics.map((sub)=>`<div class="catalog-subtopic" data-subtopic-id="${escapeAttribute(sub.id)}"><span>${escapeHtml(sub.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-subtopic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subtopic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">Nenhum subtema — opcional.</small>`}</div><form class="subtopic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema (opcional)" /><button class="ghost-button" type="submit">+ Subtema</button></form></div></details>`;
+          const allSubtopics=(catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+          const topicMatches = term && topic.name.toLocaleLowerCase("pt-BR").includes(term);
+          const subtopics = !term || subjectMatches || topicMatches ? allSubtopics : allSubtopics.filter((sub)=>sub.name.toLocaleLowerCase("pt-BR").includes(term));
+          const topicOpen = term || uiPreferences.openTopics.includes(topic.id);
+          return `<details class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}" ${topicOpen ? "open" : ""}><summary><input class="catalog-select" type="checkbox" data-topic-select="${escapeAttribute(topic.id)}" aria-label="Selecionar tema ${escapeAttribute(topic.name)}" ${catalogTopicSelection.has(topic.id) ? "checked" : ""}/><span class="catalog-topic-title"><strong>${escapeHtml(topic.name)}</strong><small>${allSubtopics.length} subtema${allSubtopics.length===1?"":"s"}</small></span><div><button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></summary><div class="catalog-subtopic-body"><div class="catalog-subtopics">${subtopics.map((sub)=>`<div class="catalog-subtopic" data-subtopic-id="${escapeAttribute(sub.id)}"><span>${escapeHtml(sub.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-subtopic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subtopic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">${term ? "Nenhum subtema corresponde à pesquisa." : "Nenhum subtema — opcional."}</small>`}</div><form class="subtopic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema (opcional)" /><button class="ghost-button" type="submit">+ Subtema</button></form></div></details>`;
         }).join("") || `<small class="catalog-empty-topic">Nenhum tema ainda.</small>`}</div>
         <form class="topic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar tema" required /><button class="ghost-button" type="submit">+ Tema</button></form>
       </div></details>`;
@@ -2018,7 +2197,51 @@ function archiveCatalogRecord(type,id){
   saveCatalogAndRefresh("Cadastro arquivado sem apagar o histórico.");
 }
 
+function getSelectedTopicImpact(topicIds) {
+  const ids = new Set(topicIds);
+  const affectedSessions = sessions.filter((item) => ids.has(item.topicId));
+  const affectedReviews = reviews.filter((item) => ids.has(item.topicId));
+  return {
+    sessions: affectedSessions.length,
+    reviews: affectedReviews.length,
+    questions: affectedSessions.reduce((sum,item) => sum + Number(item.questions || 0), 0),
+    durationSeconds: affectedSessions.reduce((sum,item) => sum + Number(item.durationSeconds || 0), 0)
+  };
+}
+
+function archiveSelectedTopics() {
+  const selected = catalog.topics.filter((item) => catalogTopicSelection.has(item.id) && !item.archived);
+  if (!selected.length) return;
+  const impact = getSelectedTopicImpact(selected.map((item) => item.id));
+  const summary = `${impact.sessions} sessões • ${formatDuration(impact.durationSeconds)} • ${formatNumber(impact.questions)} questões • ${impact.reviews} revisões`;
+  if (!window.confirm(`Arquivar ${selected.length} ${selected.length === 1 ? "tema selecionado" : "temas selecionados"}?\n\nImpacto preservado: ${summary}\n\nNada será apagado e uma cópia automática permitirá desfazer.`)) return;
+  if (!captureUndo(`Arquivamento em lote de ${selected.length} tema(s)`)) return;
+  const now = Date.now();
+  selected.forEach((topic) => {
+    topic.archived = true;
+    topic.updatedAt = now;
+    catalog.subtopics.filter((item) => item.topicId === topic.id).forEach((item) => { item.archived = true; item.updatedAt = now; });
+  });
+  addAuditEntry("archive", `${selected.length} tema(s) arquivado(s) em lote`, summary);
+  catalogTopicSelection.clear();
+  saveCatalogAndRefresh("Temas arquivados sem apagar o histórico.");
+}
+
+function mergeSelectedTopics() {
+  const selected = catalog.topics.filter((item) => catalogTopicSelection.has(item.id) && !item.archived);
+  if (selected.length < 2) { showToast("Selecione pelo menos dois temas.", "error"); return; }
+  const subjectIds = new Set(selected.map((item) => item.subjectId));
+  if (subjectIds.size !== 1) { showToast("Para mesclar, selecione temas da mesma matéria.", "error"); return; }
+  openCatalogMerge(selected[0].subjectId);
+  catalogMergeForm.elements.targetTopicId.value = selected[0].id;
+  renderCatalogMergeSources();
+  const sources = new Set(selected.slice(1).map((item) => item.id));
+  catalogMergeSources.querySelectorAll('input[name="sourceTopicId"]').forEach((input) => { input.checked = sources.has(input.value); });
+  updateCatalogMergeSummary();
+}
+
 function renderAll() {
+  renderHistoryFilterOptions();
   renderHistory();
   renderStats();
   renderSubjectPerformance();
@@ -2034,6 +2257,7 @@ function renderAll() {
   renderCatalog();
   renderDatalists();
   renderSafetyCenter();
+  renderTodayDashboard();
 }
 
 function resetForm() {
@@ -2247,12 +2471,30 @@ navItems.forEach((item) => {
 });
 
 newStudyButton.addEventListener("click", () => {
-  resetForm();
-  document.getElementById("registrar").scrollIntoView({ behavior: "smooth" });
-  window.setTimeout(() => studyForm.elements.subject.focus(), 450);
+  openStudyRegistration();
 });
 
 searchInput.addEventListener("input", renderHistory);
+if (historySubjectFilter) historySubjectFilter.addEventListener("change", () => { renderHistoryFilterOptions(); renderHistory(); });
+[historyTopicFilter, historyContextFilter, historyStartDate, historyEndDate].forEach((input) => input?.addEventListener("change", renderHistory));
+if (clearHistoryFilters) clearHistoryFilters.addEventListener("click", () => {
+  searchInput.value = "";
+  historySubjectFilter.value = "";
+  historyTopicFilter.value = "";
+  historyContextFilter.value = "";
+  historyStartDate.value = "";
+  historyEndDate.value = "";
+  renderHistoryFilterOptions();
+  renderHistory();
+});
+if (todayRegisterStudyButton) todayRegisterStudyButton.addEventListener("click", () => openStudyRegistration());
+if (todayStartTimerButton) todayStartTimerButton.addEventListener("click", () => openStudyRegistration(null, true));
+if (todayStudySuggestionButton) todayStudySuggestionButton.addEventListener("click", () => openStudyRegistration(suggestedStudyItem));
+if (dailyGoalMinutesInput) dailyGoalMinutesInput.addEventListener("change", () => {
+  uiPreferences.dailyGoalMinutes = Math.max(15, Math.min(1440, Number(dailyGoalMinutesInput.value || 120)));
+  saveUiPreferences();
+  renderTodayDashboard();
+});
 if (topicAnalysisSearch) topicAnalysisSearch.addEventListener("input", renderTopicAnalytics);
 
 
@@ -2276,9 +2518,15 @@ if (mockForm) {
 }
 
 if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} if(!captureUndo(`Criação de matéria: ${name}`))return; const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Matéria criada: ${name}`); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
+if (catalogSearch) catalogSearch.addEventListener("input", renderCatalog);
+if (archiveSelectedTopicsButton) archiveSelectedTopicsButton.addEventListener("click", archiveSelectedTopics);
+if (mergeSelectedTopicsButton) mergeSelectedTopicsButton.addEventListener("click", mergeSelectedTopics);
+if (clearCatalogSelectionButton) clearCatalogSelectionButton.addEventListener("click", () => { catalogTopicSelection.clear(); renderCatalog(); });
 if (catalogList) {
   catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} if(!captureUndo(`Criação de tema: ${name}`))return; catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Tema criado: ${name}`); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} if(!captureUndo(`Criação de subtema: ${name}`))return; catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Subtema criado: ${name}`); saveCatalogAndRefresh("Subtema adicionado."); } });
-  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="correct-merge")openCatalogMergeCorrection(subjectNode.dataset.subjectId); if(action==="merge-topics")openCatalogMerge(subjectNode.dataset.subjectId); if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
+  catalogList.addEventListener("click", (event) => { if(event.target.closest(".catalog-select")){event.stopPropagation();return;} const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="correct-merge")openCatalogMergeCorrection(subjectNode.dataset.subjectId); if(action==="merge-topics")openCatalogMerge(subjectNode.dataset.subjectId); if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
+  catalogList.addEventListener("change", (event) => { const checkbox=event.target.closest("[data-topic-select]"); if(!checkbox)return; if(checkbox.checked)catalogTopicSelection.add(checkbox.dataset.topicSelect);else catalogTopicSelection.delete(checkbox.dataset.topicSelect); renderCatalogBulkActions(); });
+  catalogList.addEventListener("toggle", (event) => { const details=event.target; if(!details.matches?.(".catalog-subject,.catalog-topic") || catalogSearch.value.trim())return; const key=details.matches(".catalog-subject")?"openSubjects":"openTopics"; const id=details.matches(".catalog-subject")?details.dataset.subjectId:details.dataset.topicId; const values=new Set(uiPreferences[key]); if(details.open)values.add(id);else values.delete(id); uiPreferences[key]=[...values]; saveUiPreferences(); }, true);
 }
 if (catalogMergeForm) {
   catalogMergeForm.elements.targetTopicId.addEventListener("change", renderCatalogMergeSources);
@@ -2301,7 +2549,7 @@ if (catalogMergeForm) {
     }
     if (!captureUndo("Mesclagem de temas")) return;
     if (newTargetRecord) catalog.topics.push(newTargetRecord);
-    if (applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds)) closeCatalogMergeNow();
+    if (applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds)) { catalogTopicSelection.clear(); closeCatalogMergeNow(); }
   });
   closeCatalogMergeModal.addEventListener("click", closeCatalogMergeNow);
   cancelCatalogMerge.addEventListener("click", closeCatalogMergeNow);
@@ -2341,7 +2589,10 @@ if (openArchivedItemsButton) {
     const button = event.target.closest("[data-restore-type]");
     if (button) restoreArchivedCatalogRecord(button.dataset.restoreType, button.dataset.restoreId);
   });
+  archivedItemsList.addEventListener("change", (event) => { const checkbox=event.target.closest("[data-archived-key]"); if(!checkbox)return; if(checkbox.checked)archivedSelection.add(checkbox.dataset.archivedKey);else archivedSelection.delete(checkbox.dataset.archivedKey); archivedSelectedCount.textContent=archivedSelection.size; archivedBulkActions.classList.toggle("hidden",!archivedSelection.size); });
 }
+if (restoreSelectedArchivedButton) restoreSelectedArchivedButton.addEventListener("click", restoreSelectedArchivedItems);
+if (clearArchivedSelectionButton) clearArchivedSelectionButton.addEventListener("click", () => { archivedSelection.clear(); renderArchivedItems(); });
 
 if (undoLastActionButton) undoLastActionButton.addEventListener("click", undoLastStructuralAction);
 if (exportBackupButton) exportBackupButton.addEventListener("click", exportCompleteBackup);
@@ -2359,7 +2610,7 @@ timerFinish.addEventListener("click", finishTimer);
 timerCancel.addEventListener("click", cancelTimer);
 
 
-function setCollapsibleExpanded(targetId, expanded) {
+function setCollapsibleExpanded(targetId, expanded, persist = true) {
   const content = document.getElementById(targetId);
   const button = document.querySelector(`[data-collapse-target="${targetId}"]`);
   if (!content || !button) return;
@@ -2367,6 +2618,14 @@ function setCollapsibleExpanded(targetId, expanded) {
   button.setAttribute("aria-expanded", String(expanded));
   const label = button.querySelector("span:first-child");
   if (label) label.textContent = expanded ? "Recolher" : "Expandir";
+  if (persist) {
+    uiPreferences.collapsible[targetId] = expanded;
+    saveUiPreferences();
+  }
+}
+
+function restoreCollapsibleState() {
+  Object.entries(uiPreferences.collapsible || {}).forEach(([targetId, expanded]) => setCollapsibleExpanded(targetId, Boolean(expanded), false));
 }
 
 document.querySelectorAll("[data-collapse-target]").forEach((button) => {
@@ -2498,6 +2757,7 @@ migrateLegacyCatalogState();
 if (mockDate) resetMockForm();
 syncQuestionContextMode();
 renderAll();
+restoreCollapsibleState();
 updateAccuracyPreview();
 renderTimer();
 if (activeTimer?.running) startTimerTick();

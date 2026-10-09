@@ -49,7 +49,7 @@ const SafetyEngine = (() => {
   function createBackup(state, auditLog = [], exportedAt = Date.now()) {
     return {
       schemaVersion: 1,
-      appVersion: "1.8.0",
+      appVersion: "1.9.0",
       exportedAt,
       data: {
         sessions: clone(state.sessions || []),

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.8.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.9.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -23,7 +23,7 @@
 
       <nav class="nav">
         <button class="nav-item active" data-section="dashboard">
-          <span>⌂</span> Dashboard
+          <span>⌂</span> Hoje
         </button>
         <button class="nav-item" data-section="registrar">
           <span>＋</span> Registrar estudo
@@ -46,8 +46,8 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 1.8</p>
-        <span>Segurança e organização dos dados</span>
+        <p>Versão 1.9</p>
+        <span>Hoje e melhorias de usabilidade</span>
       </div>
     </aside>
 
@@ -56,7 +56,7 @@
         <button class="icon-button menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
         <div>
           <p class="eyebrow">Painel de estudos</p>
-          <h1 id="pageTitle">Dashboard</h1>
+          <h1 id="pageTitle">Hoje</h1>
         </div>
         <div class="topbar-actions">
           <button class="sync-status local" id="syncStatus" type="button" title="Clique para sincronizar">
@@ -68,19 +68,55 @@
       </header>
 
       <section class="content">
-        <div class="hero">
+        <div class="hero" id="dashboard">
           <div>
-            <span class="pill">Visão geral</span>
-            <h2>Estude com dados, não com sensação.</h2>
-            <p>
-              Acompanhe questões, acertos, pontos fracos e revisões em um único painel.
-            </p>
+            <span class="pill">Seu dia</span>
+            <h2>O que precisa da sua atenção hoje.</h2>
+            <p id="todaySummaryText">Reunindo revisões, meta e sua próxima prioridade.</p>
+            <div class="today-hero-actions">
+              <button class="primary-button" id="todayStartTimer" type="button">▶ Iniciar cronômetro</button>
+              <button class="ghost-button" id="todayRegisterStudy" type="button">+ Registrar estudo</button>
+            </div>
           </div>
           <div class="hero-date">
             <span>Hoje</span>
             <strong id="todayDate">--/--/----</strong>
           </div>
         </div>
+
+        <section class="today-dashboard" aria-label="Resumo de hoje">
+          <div class="today-metrics">
+            <article class="today-metric">
+              <span>Tempo estudado hoje</span>
+              <strong id="todayStudyTime">0h 00m</strong>
+              <div class="today-goal-line"><span id="todayGoalProgressText">0% da meta</span><label>Meta <input id="dailyGoalMinutes" type="number" min="15" max="1440" step="15" value="120" /> min</label></div>
+              <div class="progress"><i id="todayGoalProgressBar" style="width:0%"></i></div>
+            </article>
+            <article class="today-metric urgent">
+              <span>Revisões atrasadas</span>
+              <strong id="todayOverdueCount">0</strong>
+              <small id="todayOverdueNote">Tudo em dia</small>
+            </article>
+            <article class="today-metric">
+              <span>Programadas para hoje</span>
+              <strong id="todayDueCount">0</strong>
+              <small id="todayDueNote">Nenhuma pendência</small>
+            </article>
+          </div>
+          <div class="today-focus-grid">
+            <article class="today-focus-card">
+              <span class="panel-kicker">Próximo assunto sugerido</span>
+              <strong id="todaySuggestionTitle">Aguardando seus dados</strong>
+              <small id="todaySuggestionPath">Registre estudos para receber uma sugestão.</small>
+              <p id="todaySuggestionReason">A prioridade considera revisões, desempenho e tempo sem contato.</p>
+              <button class="secondary-button" id="todayStudySuggestion" type="button" disabled>Estudar este assunto</button>
+            </article>
+            <article class="today-agenda-card">
+              <div class="today-agenda-head"><div><span class="panel-kicker">Agenda imediata</span><strong>Revisões pendentes</strong></div><span class="counter" id="todayAgendaCount">0</span></div>
+              <div id="todayAgendaList" class="today-agenda-list"></div>
+            </article>
+          </div>
+        </section>
 
         <section class="stats-grid">
           <article class="stat-card">
@@ -498,7 +534,7 @@
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Domínio</span>
-                <h3>Distribuição dos subtemas</h3>
+                <h3>Distribuição de temas e subtemas</h3>
               </div>
             </div>
 
@@ -554,7 +590,7 @@
               </thead>
               <tbody id="topicAnalysisBody">
                 <tr class="empty-table-row">
-                  <td colspan="9">
+                  <td colspan="10">
                     <div class="empty-state">
                       <strong>Nenhum tema ou subtema analisado</strong>
                       <span>Os dados aparecerão aqui conforme você registrar sessões.</span>
@@ -623,6 +659,15 @@
             </div>
           </div>
           <p class="catalog-help">Cadastre cada matéria uma vez. Dentro dela, organize os temas e, quando necessário, subtemas opcionais. Clique em uma matéria ou tema para expandir. Renomear ou arquivar preserva o histórico pelos identificadores.</p>
+          <div class="catalog-toolbar">
+            <input id="catalogSearch" class="search-input" type="search" placeholder="Pesquisar matéria, tema ou subtema..." />
+            <div id="catalogBulkActions" class="bulk-actions hidden">
+              <span><strong id="catalogSelectedCount">0</strong> temas selecionados</span>
+              <button class="table-button" id="mergeSelectedTopics" type="button">Mesclar</button>
+              <button class="table-button danger" id="archiveSelectedTopics" type="button">Arquivar</button>
+              <button class="text-button" id="clearCatalogSelection" type="button">Limpar seleção</button>
+            </div>
+          </div>
           <form id="subjectCatalogForm" class="catalog-create-row">
             <input type="text" name="name" maxlength="160" placeholder="Nome da matéria" required />
             <button class="primary-button" type="submit">+ Adicionar matéria</button>
@@ -674,8 +719,19 @@
           </div>
 
           <div id="historyContent" class="collapsible-content" hidden>
-            <div class="table-toolbar">
+            <div class="table-toolbar history-filters">
               <input id="searchInput" class="search-input" type="search" placeholder="Buscar matéria, tema ou subtema..." />
+              <select id="historySubjectFilter" aria-label="Filtrar por matéria"><option value="">Todas as matérias</option></select>
+              <select id="historyTopicFilter" aria-label="Filtrar por tema"><option value="">Todos os temas</option></select>
+              <select id="historyContextFilter" aria-label="Filtrar por contexto">
+                <option value="">Todos os contextos</option>
+                <option value="study">Durante o estudo</option>
+                <option value="independent">Bateria independente</option>
+                <option value="review">Revisão programada</option>
+              </select>
+              <label class="history-date-filter"><span>De</span><input id="historyStartDate" type="date" /></label>
+              <label class="history-date-filter"><span>Até</span><input id="historyEndDate" type="date" /></label>
+              <button class="text-button" id="clearHistoryFilters" type="button">Limpar filtros</button>
             </div>
           <div class="table-wrap">
             <table>
@@ -817,6 +873,7 @@
         <button class="icon-button" id="closeArchivedItemsModal" type="button" aria-label="Fechar">×</button>
       </div>
       <p class="auth-note">Restaurar uma matéria ou tema também restaura sua estrutura descendente para que ela volte a ser utilizável.</p>
+      <div id="archivedBulkActions" class="bulk-actions hidden"><span><strong id="archivedSelectedCount">0</strong> itens selecionados</span><button class="table-button" id="restoreSelectedArchived" type="button">Restaurar selecionados</button><button class="text-button" id="clearArchivedSelection" type="button">Limpar seleção</button></div>
       <div id="archivedItemsList" class="archived-items-list"></div>
       <div class="modal-actions"><button class="ghost-button" id="doneArchivedItems" type="button">Concluir</button></div>
     </div>
@@ -847,12 +904,12 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=1.8.0"></script>
+  <script src="js/storage.js?v=1.9.0"></script>
   <script src="js/api.js?v=1.1.2"></script>
   <script src="js/sync.js?v=1.8.0"></script>
   <script src="js/reviews.js?v=1.4.0"></script>
   <script src="js/catalog.js?v=1.5.1"></script>
-  <script src="js/safety.js?v=1.8.0"></script>
-  <script src="js/app.js?v=1.8.0"></script>
+  <script src="js/safety.js?v=1.9.0"></script>
+  <script src="js/app.js?v=1.9.0"></script>
 </body>
 </html>

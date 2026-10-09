@@ -86,3 +86,11 @@ A central de segurança reúne os itens arquivados e permite restaurar matérias
 O backup completo em JSON inclui sessões, revisões, simulados e todo o catálogo. A restauração valida a estrutura e os identificadores antes de substituir os dados, cria uma cópia do estado atual e sincroniza as alterações de forma compatível com os tombstones. Operações grandes mostram previamente seu impacto em registros, tempo, questões e revisões.
 
 O histórico local registra criações, renomeações, mesclagens, arquivamentos, restaurações e exclusões. O indicador de sincronização informa o horário da última conclusão, a quantidade total de registros, alterações pendentes e eventuais erros. Os textos da interface seguem a hierarquia **Matéria → Tema → Subtema**.
+
+## V1.9 — Hoje e melhorias de usabilidade
+
+A nova tela inicial **Hoje** reúne tempo estudado e progresso da meta diária, revisões atrasadas, revisões programadas para o dia e a próxima sugestão de estudo. Atalhos permitem iniciar ou continuar o cronômetro e abrir o formulário de registro já no assunto sugerido.
+
+O histórico ganhou filtros combináveis de matéria, tema, contexto e intervalo de datas. O cadastro agora possui pesquisa e seleção múltipla de temas para arquivamento ou mesclagem; a central de arquivados também aceita restauração em lote, sempre com resumo de impacto e cópia automática para desfazer.
+
+No celular, os campos são maiores e a área de salvar permanece fixa na parte inferior do formulário. O navegador memoriza a meta diária, os painéis recolhíveis e as matérias e temas que estavam abertos.
