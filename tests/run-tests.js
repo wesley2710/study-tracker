@@ -65,6 +65,8 @@ assert.match(appSource, /questionContext = activityType === "review" \? "review"
 assert.match(appSource, /reviewKey = activityType === "review"/, "estudo e bateria independente não recebem vínculo de revisão");
 assert.match(appSource, /ReviewEngine\.shouldResetCycle\(latestNormalStudySession, latestReview\)/, "novo estudo normal posterior reinicia somente a agenda adaptativa");
 assert.match(appSource, /cycleStudySession = studyStartsNewCycle \? latestNormalStudySession : latestStudySession/, "bateria independente posterior não desloca a data-base do ciclo reiniciado");
+assert.match(appSource, /subject-row \$\{classify\(item\.percentage\)\.className\}/, "barras por matéria recebem cor conforme o desempenho");
+assert.match(appSource, /Chart\.defaults\.color = "#8292a6"/, "gráficos usam tema visual integrado ao painel");
 
 const catalogContext = {};
 vm.createContext(catalogContext);

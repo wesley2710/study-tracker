@@ -70,3 +70,7 @@ As datas recebidas da planilha são normalizadas durante a sincronização. Assi
 Matérias com dois ou mais temas exibem a ação **Mesclar temas**. É possível escolher o tema que será mantido e um ou mais temas a incorporar. Todas as sessões, horas, questões, acertos e revisões são transferidos para o tema de destino; os temas de origem são apenas arquivados. Subtemas também são transferidos e nomes repetidos são consolidados.
 
 O formulário também permite criar um novo tema geral durante a própria junção. Se o destino errado for selecionado, a ação **Corrigir última junção** identifica o lote recém-transferido e o redireciona para um novo tema, preservando os registros que já pertenciam ao destino anterior.
+
+## V1.6 — Refinamento visual
+
+A interface ganhou maior contraste, superfícies mais discretas, indicadores com hierarquia mais clara, barras de domínio coloridas por faixa de desempenho e gráficos com escalas, linhas, pontos e tooltips adaptados ao painel escuro. No celular, os quatro indicadores principais permanecem em uma grade compacta de duas colunas.

@@ -409,7 +409,7 @@ function renderSubjectPerformance() {
     .slice(0, 6);
 
   subjectPerformance.innerHTML = rows.map((item) => `
-    <div class="subject-row">
+    <div class="subject-row ${classify(item.percentage).className}">
       <div>
         <strong>${escapeHtml(item.name)}</strong>
         <span>${formatPercent(item.percentage)} • ${formatNumber(item.q)} questões</span>
@@ -736,6 +736,15 @@ function destroyChart(instance) {
 function renderCharts() {
   if (typeof Chart === "undefined") return;
 
+  Chart.defaults.color = "#8292a6";
+  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  Chart.defaults.font.size = 10;
+  Chart.defaults.borderColor = "rgba(148,169,194,.12)";
+
+  const gridStyle = { color: "rgba(148,169,194,.09)", drawBorder: false };
+  const tickStyle = { color: "#71839a", padding: 8 };
+  const tooltipStyle = { backgroundColor: "#111923", borderColor: "rgba(148,169,194,.22)", borderWidth: 1, titleColor: "#f4f7fb", bodyColor: "#b8c4d2", padding: 11, displayColors: false };
+
   const series = getDailySeries(14);
   const labels = series.map((d) => d.label);
 
@@ -747,15 +756,28 @@ function renderCharts() {
       datasets: [{
         label: "Acertos (%)",
         data: series.map((d) => d.accuracy),
-        tension: 0.3,
-        spanGaps: true
+        tension: 0.36,
+        spanGaps: true,
+        borderColor: "#4f8cff",
+        backgroundColor: "rgba(79,140,255,.12)",
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: "#75a6ff",
+        pointBorderColor: "#0c1118",
+        pointBorderWidth: 2,
+        fill: true
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      scales: { y: { min: 0, max: 100 } },
-      plugins: { legend: { display: false } }
+      interaction: { intersect: false, mode: "index" },
+      scales: {
+        x: { grid: { display: false }, ticks: tickStyle },
+        y: { min: 0, max: 100, grid: gridStyle, ticks: { ...tickStyle, callback: (value) => `${value}%` } }
+      },
+      plugins: { legend: { display: false }, tooltip: tooltipStyle }
     }
   });
 
@@ -770,14 +792,20 @@ function renderCharts() {
       labels: subjectRows.map(([name]) => name),
       datasets: [{
         label: "Horas",
-        data: subjectRows.map(([,seconds]) => +(seconds/3600).toFixed(2))
+        data: subjectRows.map(([,seconds]) => +(seconds/3600).toFixed(2)),
+        backgroundColor: "rgba(53,197,139,.72)",
+        borderColor: "#35c58b",
+        borderWidth: 1,
+        borderRadius: 7,
+        barThickness: 12
       }]
     },
     options: {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } }
+      scales: { x: { grid: gridStyle, ticks: tickStyle }, y: { grid: { display: false }, ticks: tickStyle } },
+      plugins: { legend: { display: false }, tooltip: tooltipStyle }
     }
   });
 
@@ -788,13 +816,19 @@ function renderCharts() {
       labels,
       datasets: [{
         label: "Questões",
-        data: series.map((d) => d.questions)
+        data: series.map((d) => d.questions),
+        backgroundColor: "rgba(79,140,255,.68)",
+        borderColor: "#4f8cff",
+        borderWidth: 1,
+        borderRadius: 7,
+        maxBarThickness: 18
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } }
+      scales: { x: { grid: { display: false }, ticks: tickStyle }, y: { beginAtZero: true, grid: gridStyle, ticks: tickStyle } },
+      plugins: { legend: { display: false }, tooltip: tooltipStyle }
     }
   });
 
@@ -817,19 +851,24 @@ function renderCharts() {
     data: {
       datasets: [{
         label: "Matérias",
-        data: efficiencyRows.map((r) => ({x:+r.hours.toFixed(2), y:+r.accuracy.toFixed(1), subject:r.subject}))
+        data: efficiencyRows.map((r) => ({x:+r.hours.toFixed(2), y:+r.accuracy.toFixed(1), subject:r.subject})),
+        backgroundColor: "rgba(239,184,79,.78)",
+        borderColor: "#efb84f",
+        pointRadius: 5,
+        pointHoverRadius: 7
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { title: { display: true, text: "Horas estudadas" } },
-        y: { min: 0, max: 100, title: { display: true, text: "Acertos (%)" } }
+        x: { grid: gridStyle, ticks: tickStyle, title: { display: true, text: "Horas estudadas", color: "#8292a6" } },
+        y: { min: 0, max: 100, grid: gridStyle, ticks: { ...tickStyle, callback: (value) => `${value}%` }, title: { display: true, text: "Acertos (%)", color: "#8292a6" } }
       },
       plugins: {
         legend: { display: false },
         tooltip: {
+          ...tooltipStyle,
           callbacks: {
             label(context) {
               const raw = context.raw;
