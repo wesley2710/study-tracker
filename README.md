@@ -64,3 +64,7 @@ A primeira revisão é sempre agendada em 3 dias. Somente sessões com contexto 
 Ao registrar um novo estudo normal de um assunto que já possua revisões, a agenda desse assunto inicia um novo ciclo em 3 dias. O histórico anterior, as questões, o tempo estudado e as estatísticas são preservados. Baterias independentes e sessões de revisão não reiniciam o ciclo.
 
 As datas recebidas da planilha são normalizadas durante a sincronização. Assim, sessões registradas no celular continuam aparecendo corretamente nos filtros do banco de horas no computador, sem alterar a duração informada.
+
+## V1.5 — Junção de temas
+
+Matérias com dois ou mais temas exibem a ação **Mesclar temas**. É possível escolher o tema que será mantido e um ou mais temas a incorporar. Todas as sessões, horas, questões, acertos e revisões são transferidos para o tema de destino; os temas de origem são apenas arquivados. Subtemas também são transferidos e nomes repetidos são consolidados.

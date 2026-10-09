@@ -78,5 +78,87 @@ const CatalogEngine = (() => {
     return { ...state, sessions, reviews, mocks, subjects, topics, subtopics, changed };
   }
 
-  return { normalizeName, migrate };
+  function mergeTopics(state, options) {
+    const timestamp = Number(options?.timestamp) || Date.now();
+    const subjectId = options?.subjectId;
+    const targetTopicId = options?.targetTopicId;
+    const requestedSourceIds = new Set(options?.sourceTopicIds || []);
+    requestedSourceIds.delete(targetTopicId);
+
+    const topics = (state.topics || []).map((item) => ({ ...item }));
+    const subtopics = (state.subtopics || []).map((item) => ({ ...item }));
+    const target = topics.find((item) => item.id === targetTopicId && item.subjectId === subjectId && !item.archived);
+    const sources = topics.filter((item) => requestedSourceIds.has(item.id) && item.subjectId === subjectId && !item.archived);
+    if (!target || !sources.length) return { ...state, changed: false };
+
+    const sourceIds = new Set(sources.map((item) => item.id));
+    const sourceNames = new Set(sources.map((item) => comparableName(item.name)));
+    const subject = (state.subjects || []).find((item) => item.id === subjectId);
+    const subtopicTargets = new Map();
+
+    subtopics.filter((item) => sourceIds.has(item.topicId)).forEach((sourceSubtopic) => {
+      const duplicate = subtopics.find((item) => item.id !== sourceSubtopic.id && item.topicId === target.id && comparableName(item.name) === comparableName(sourceSubtopic.name));
+      if (duplicate) {
+        if (duplicate.archived && !sourceSubtopic.archived) duplicate.archived = false;
+        duplicate.updatedAt = timestamp;
+        subtopicTargets.set(sourceSubtopic.id, duplicate);
+        sourceSubtopic.archived = true;
+        sourceSubtopic.updatedAt = timestamp;
+      } else {
+        sourceSubtopic.topicId = target.id;
+        sourceSubtopic.updatedAt = timestamp;
+        subtopicTargets.set(sourceSubtopic.id, sourceSubtopic);
+      }
+    });
+
+    const belongsToSource = (record) => sourceIds.has(record.topicId) || (
+      (!record.topicId || record.subjectId === subjectId || comparableName(record.subject) === comparableName(subject?.name)) &&
+      sourceNames.has(comparableName(record.topic))
+    );
+
+    const moveRecord = (record) => {
+      if (!belongsToSource(record)) return record;
+      const mappedSubtopic = subtopicTargets.get(record.subtopicId);
+      const subtopicId = mappedSubtopic?.id || record.subtopicId || null;
+      const subtopic = mappedSubtopic?.name || record.subtopic || "";
+      return {
+        ...record,
+        subjectId,
+        topicId: target.id,
+        subtopicId,
+        subject: subject?.name || record.subject,
+        topic: target.name,
+        subtopic,
+        reviewKey: record.reviewKey ? `${subject?.name || record.subject}|||${target.name}|||${subtopic}` : record.reviewKey,
+        updatedAt: timestamp
+      };
+    };
+
+    const sessions = (state.sessions || []).map(moveRecord);
+    const reviews = (state.reviews || []).map((record) => {
+      const moved = moveRecord(record);
+      if (moved === record) return record;
+      return { ...moved, reviewKey: `${moved.subject}|||${moved.topic}|||${moved.subtopic || ""}` };
+    });
+
+    sources.forEach((source) => { source.archived = true; source.updatedAt = timestamp; });
+    target.updatedAt = timestamp;
+
+    return {
+      ...state,
+      sessions,
+      reviews,
+      topics,
+      subtopics,
+      changed: true,
+      summary: {
+        targetTopicId: target.id,
+        mergedTopicIds: [...sourceIds],
+        movedSessions: sessions.filter((item, index) => item !== (state.sessions || [])[index]).length,
+        movedReviews: reviews.filter((item, index) => item !== (state.reviews || [])[index]).length
+      }
+    };
+  }
+
+  return { normalizeName, migrate, mergeTopics };
 })();

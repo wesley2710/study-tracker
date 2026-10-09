@@ -94,6 +94,35 @@ const legacyTopicOnly = catalogEngine.migrate({
 assert.equal(legacyTopicOnly.sessions[0].subtopicId, undefined, "registro antigo permanece válido sem subtema");
 assert.equal(legacyTopicOnly.topics[0].name, "Crase", "tema legado não é convertido em subtema");
 
+const mergedTopics = catalogEngine.mergeTopics({
+  subjects: [{ id: "subject", name: "Previdenciário" }],
+  topics: [
+    { id: "target", subjectId: "subject", name: "Segurado obrigatório", archived: false },
+    { id: "employee", subjectId: "subject", name: "Empregado", archived: false },
+    { id: "domestic", subjectId: "subject", name: "Empregado doméstico", archived: false }
+  ],
+  subtopics: [
+    { id: "target-sub", topicId: "target", name: "Carência", archived: false },
+    { id: "duplicate-sub", topicId: "employee", name: "Carência", archived: false },
+    { id: "unique-sub", topicId: "domestic", name: "Salário", archived: false }
+  ],
+  sessions: [
+    { id: "session", subjectId: "subject", topicId: "employee", subtopicId: "duplicate-sub", subject: "Previdenciário", topic: "Empregado", subtopic: "Carência", questions: 20, durationSeconds: 3600, reviewKey: null }
+  ],
+  reviews: [
+    { id: "review", subjectId: "subject", topicId: "domestic", subtopicId: null, subject: "Previdenciário", topic: "Empregado doméstico", subtopic: "", reviewKey: "antiga" }
+  ]
+}, { subjectId: "subject", targetTopicId: "target", sourceTopicIds: ["employee", "domestic"], timestamp: 500 });
+assert.equal(mergedTopics.changed, true, "junção válida altera o catálogo");
+assert.equal(mergedTopics.sessions[0].topicId, "target", "sessão é transferida ao tema mantido");
+assert.equal(mergedTopics.sessions[0].durationSeconds, 3600, "junção preserva o tempo estudado");
+assert.equal(mergedTopics.sessions[0].questions, 20, "junção preserva as questões");
+assert.equal(mergedTopics.sessions[0].subtopicId, "target-sub", "subtema repetido é consolidado");
+assert.equal(mergedTopics.reviews[0].topic, "Segurado obrigatório", "histórico de revisão é transferido");
+assert.equal(mergedTopics.reviews[0].reviewKey, "Previdenciário|||Segurado obrigatório|||", "chave da revisão acompanha o tema geral");
+assert.equal(mergedTopics.topics.find((item) => item.id === "employee").archived, true, "tema incorporado é arquivado");
+assert.equal(mergedTopics.subtopics.find((item) => item.id === "unique-sub").topicId, "target", "subtema único é movido ao destino");
+
 const appText = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 const backendText = fs.readFileSync(path.join(root, "backend/Code.gs"), "utf8");
 const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");

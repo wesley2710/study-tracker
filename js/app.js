@@ -33,6 +33,13 @@ const catalogRenameForm = document.querySelector("#catalogRenameForm");
 const catalogRenameTitle = document.querySelector("#catalogRenameTitle");
 const closeCatalogRenameModal = document.querySelector("#closeCatalogRenameModal");
 const cancelCatalogRename = document.querySelector("#cancelCatalogRename");
+const catalogMergeModal = document.querySelector("#catalogMergeModal");
+const catalogMergeForm = document.querySelector("#catalogMergeForm");
+const catalogMergeTitle = document.querySelector("#catalogMergeTitle");
+const catalogMergeSources = document.querySelector("#catalogMergeSources");
+const catalogMergeSummary = document.querySelector("#catalogMergeSummary");
+const closeCatalogMergeModal = document.querySelector("#closeCatalogMergeModal");
+const cancelCatalogMerge = document.querySelector("#cancelCatalogMerge");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -122,6 +129,7 @@ let mocks = MockStorage.load();
 let catalog = CatalogStorage.load();
 let editingMockId = null;
 let pendingCatalogRename = null;
+let pendingCatalogMergeSubjectId = null;
 let syncMeta = SyncStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
@@ -1500,7 +1508,7 @@ function renderCatalog() {
   catalogList.innerHTML = subjects.map((subject) => {
     const topics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
     return `<details class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}">
-      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} tema${topics.length===1?"":"s"}</small></div><div class="catalog-actions"><button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
+      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${topics.length} tema${topics.length===1?"":"s"}</small></div><div class="catalog-actions">${topics.length > 1 ? `<button type="button" class="table-button" data-catalog-action="merge-topics">Mesclar temas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
       <div class="catalog-subject-body">
         <div class="catalog-topics">${topics.map((topic)=>{
           const subtopics=(catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
@@ -1564,6 +1572,61 @@ function closeCatalogRenameNow() {
   pendingCatalogRename = null;
   catalogRenameForm.reset();
   catalogRenameModal.classList.add("hidden");
+}
+
+function getSelectedMergeSourceIds() {
+  return [...catalogMergeSources.querySelectorAll('input[name="sourceTopicId"]:checked')].map((input) => input.value);
+}
+
+function updateCatalogMergeSummary() {
+  if (!pendingCatalogMergeSubjectId) return;
+  const sourceIds = new Set(getSelectedMergeSourceIds());
+  const affectedSessions = sessions.filter((item) => sourceIds.has(item.topicId));
+  const affectedReviews = reviews.filter((item) => sourceIds.has(item.topicId));
+  const seconds = affectedSessions.reduce((sum, item) => sum + Number(item.durationSeconds || 0), 0);
+  const questions = affectedSessions.reduce((sum, item) => sum + Number(item.questions || 0), 0);
+  catalogMergeSummary.innerHTML = sourceIds.size
+    ? `<strong>${sourceIds.size} tema${sourceIds.size === 1 ? "" : "s"}</strong> • ${affectedSessions.length} sessões • ${formatDuration(seconds)} • ${formatNumber(questions)} questões • ${affectedReviews.length} revisões`
+    : "Selecione ao menos um tema para incorporar.";
+}
+
+function renderCatalogMergeSources() {
+  const subjectId = pendingCatalogMergeSubjectId;
+  const targetTopicId = catalogMergeForm.elements.targetTopicId.value;
+  const selected = new Set(getSelectedMergeSourceIds());
+  const topics = catalog.topics.filter((item) => item.subjectId === subjectId && !item.archived && item.id !== targetTopicId).sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
+  catalogMergeSources.innerHTML = topics.map((topic) => `<label class="merge-source-option"><input type="checkbox" name="sourceTopicId" value="${escapeAttribute(topic.id)}" ${selected.has(topic.id) ? "checked" : ""}/><span>${escapeHtml(topic.name)}</span></label>`).join("") || `<small class="catalog-empty-topic">Não há outro tema disponível.</small>`;
+  updateCatalogMergeSummary();
+}
+
+function openCatalogMerge(subjectId) {
+  const subject = catalog.subjects.find((item) => item.id === subjectId && !item.archived);
+  const topics = catalog.topics.filter((item) => item.subjectId === subjectId && !item.archived).sort((a,b) => a.name.localeCompare(b.name,"pt-BR"));
+  if (!subject || topics.length < 2) { showToast("É necessário ter ao menos dois temas ativos.", "error"); return; }
+  pendingCatalogMergeSubjectId = subjectId;
+  catalogMergeTitle.textContent = `Mesclar temas de ${subject.name}`;
+  catalogMergeForm.elements.targetTopicId.innerHTML = topics.map((topic) => `<option value="${escapeAttribute(topic.id)}">${escapeHtml(topic.name)}</option>`).join("");
+  renderCatalogMergeSources();
+  catalogMergeModal.classList.remove("hidden");
+}
+
+function closeCatalogMergeNow() {
+  pendingCatalogMergeSubjectId = null;
+  catalogMergeForm.reset();
+  catalogMergeSources.innerHTML = "";
+  catalogMergeModal.classList.add("hidden");
+}
+
+function applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds) {
+  const merged = CatalogEngine.mergeTopics({ sessions, reviews, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [] }, { subjectId, targetTopicId, sourceTopicIds, timestamp: Date.now() });
+  if (!merged.changed) { showToast("Selecione ao menos um tema válido.", "error"); return false; }
+  sessions = merged.sessions;
+  reviews = merged.reviews;
+  catalog = { subjects: merged.subjects, topics: merged.topics, subtopics: merged.subtopics };
+  StudyStorage.save(sessions);
+  ReviewStorage.save(reviews);
+  saveCatalogAndRefresh(`${merged.summary.mergedTopicIds.length} tema${merged.summary.mergedTopicIds.length === 1 ? " incorporado" : "s incorporados"} sem perder o histórico.`);
+  return true;
 }
 function archiveCatalogRecord(type,id){
   const items=type==="subject"?catalog.subjects:type==="topic"?catalog.topics:catalog.subtopics;
@@ -1833,7 +1896,22 @@ if (mockForm) {
 if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
 if (catalogList) {
   catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Subtema adicionado."); } });
-  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
+  catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="merge-topics")openCatalogMerge(subjectNode.dataset.subjectId); if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
+}
+if (catalogMergeForm) {
+  catalogMergeForm.elements.targetTopicId.addEventListener("change", renderCatalogMergeSources);
+  catalogMergeSources.addEventListener("change", updateCatalogMergeSummary);
+  catalogMergeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const subjectId = pendingCatalogMergeSubjectId;
+    const targetTopicId = catalogMergeForm.elements.targetTopicId.value;
+    const sourceTopicIds = getSelectedMergeSourceIds();
+    if (!sourceTopicIds.length) { showToast("Selecione ao menos um tema para incorporar.", "error"); return; }
+    if (applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds)) closeCatalogMergeNow();
+  });
+  closeCatalogMergeModal.addEventListener("click", closeCatalogMergeNow);
+  cancelCatalogMerge.addEventListener("click", closeCatalogMergeNow);
+  catalogMergeModal.addEventListener("click", (event) => { if (event.target === catalogMergeModal) closeCatalogMergeNow(); });
 }
 if (catalogRenameForm) {
   catalogRenameForm.addEventListener("submit", (event) => {
