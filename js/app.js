@@ -46,6 +46,19 @@ const catalogMergeCorrectionForm = document.querySelector("#catalogMergeCorrecti
 const catalogMergeCorrectionSummary = document.querySelector("#catalogMergeCorrectionSummary");
 const closeCatalogMergeCorrectionModal = document.querySelector("#closeCatalogMergeCorrectionModal");
 const cancelCatalogMergeCorrection = document.querySelector("#cancelCatalogMergeCorrection");
+const openArchivedItemsButton = document.querySelector("#openArchivedItems");
+const archivedItemsModal = document.querySelector("#archivedItemsModal");
+const archivedItemsList = document.querySelector("#archivedItemsList");
+const closeArchivedItemsModal = document.querySelector("#closeArchivedItemsModal");
+const doneArchivedItems = document.querySelector("#doneArchivedItems");
+const undoLastActionButton = document.querySelector("#undoLastAction");
+const undoActionLabel = document.querySelector("#undoActionLabel");
+const undoActionTime = document.querySelector("#undoActionTime");
+const exportBackupButton = document.querySelector("#exportBackup");
+const selectBackupFileButton = document.querySelector("#selectBackupFile");
+const backupFileInput = document.querySelector("#backupFileInput");
+const auditLogList = document.querySelector("#auditLogList");
+const auditCount = document.querySelector("#auditCount");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -148,6 +161,7 @@ let pendingCatalogRename = null;
 let pendingCatalogMergeSubjectId = null;
 let pendingCatalogMergeCorrection = null;
 let syncMeta = SyncStorage.load();
+let safetyState = SafetyStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let exactTimeDate = '';
@@ -207,6 +221,175 @@ function showToast(message, type = "default") {
   toast.dataset.type = type;
   toast.classList.add("show");
   window.setTimeout(() => toast.classList.remove("show"), 2400);
+}
+
+function getSafetyAppState() {
+  return {
+    sessions,
+    reviews,
+    mocks,
+    subjects: catalog.subjects,
+    topics: catalog.topics,
+    subtopics: catalog.subtopics || [],
+    meta: syncMeta
+  };
+}
+
+function saveCompleteLocalState() {
+  StudyStorage.save(sessions);
+  ReviewStorage.save(reviews);
+  MockStorage.save(mocks);
+  CatalogStorage.save(catalog);
+  SyncStorage.save(syncMeta);
+  SafetyStorage.save(safetyState);
+}
+
+function captureUndo(label) {
+  const previousSnapshot = safetyState.undoSnapshot;
+  safetyState.undoSnapshot = {
+    id: createId(),
+    label,
+    createdAt: Date.now(),
+    state: SafetyEngine.clone(getSafetyAppState())
+  };
+  if (!SafetyStorage.save(safetyState)) {
+    safetyState.undoSnapshot = previousSnapshot;
+    showToast("Não foi possível criar a cópia automática. A ação foi cancelada.", "error");
+    return false;
+  }
+  renderSafetyCenter();
+  return true;
+}
+
+function addAuditEntry(action, label, detail = "") {
+  safetyState.auditLog = [{ id: createId(), action, label, detail, createdAt: Date.now() }, ...(safetyState.auditLog || [])].slice(0, 100);
+  SafetyStorage.save(safetyState);
+  renderSafetyCenter();
+}
+
+function formatAuditTime(timestamp) {
+  return new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }).format(new Date(timestamp));
+}
+
+function renderSafetyCenter() {
+  if (!undoLastActionButton) return;
+  const snapshot = safetyState.undoSnapshot;
+  undoLastActionButton.disabled = !snapshot;
+  undoActionLabel.textContent = snapshot?.label || "Nenhuma ação disponível";
+  undoActionTime.textContent = snapshot ? `Cópia criada em ${formatAuditTime(snapshot.createdAt)}` : "Mudanças no cadastro e exclusões criam uma cópia automática.";
+  const entries = safetyState.auditLog || [];
+  auditCount.textContent = entries.length;
+  auditLogList.innerHTML = entries.length ? entries.slice(0, 20).map((entry) => `
+    <div class="audit-item">
+      <span class="audit-icon">${entry.action === "undo" ? "↶" : entry.action === "restore" ? "↥" : entry.action === "delete" ? "×" : "✓"}</span>
+      <div class="audit-copy"><strong>${escapeHtml(entry.label)}</strong>${entry.detail ? `<small>${escapeHtml(entry.detail)}</small>` : ""}</div>
+      <span class="audit-time">${formatAuditTime(entry.createdAt)}</span>
+    </div>`).join("") : `<div class="empty-state compact"><strong>Nenhuma alteração estrutural registrada</strong><span>As próximas ações aparecerão aqui.</span></div>`;
+}
+
+function applyRestoredSafetyState(restored, auditLog = null) {
+  sessions = restored.sessions;
+  reviews = restored.reviews;
+  mocks = restored.mocks;
+  catalog = { subjects: restored.subjects, topics: restored.topics, subtopics: restored.subtopics };
+  syncMeta = restored.meta;
+  if (auditLog) safetyState.auditLog = auditLog.slice(0, 100);
+  saveCompleteLocalState();
+  renderAll();
+  StudySync.run(true);
+}
+
+function undoLastStructuralAction() {
+  const snapshot = safetyState.undoSnapshot;
+  if (!snapshot) return;
+  if (!window.confirm(`Desfazer “${snapshot.label}” e restaurar o estado anterior?`)) return;
+  const restored = SafetyEngine.prepareRestore(getSafetyAppState(), snapshot.state, Date.now());
+  const label = snapshot.label;
+  safetyState.undoSnapshot = null;
+  applyRestoredSafetyState(restored);
+  addAuditEntry("undo", `Ação desfeita: ${label}`, "Os dados anteriores foram restaurados e serão sincronizados.");
+  showToast("Última ação desfeita com sucesso.", "success");
+}
+
+function exportCompleteBackup() {
+  const backup = SafetyEngine.createBackup(getSafetyAppState(), safetyState.auditLog, Date.now());
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `study-tracker-backup-${toISODate()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  addAuditEntry("backup", "Backup completo exportado", `${sessions.length} sessões e ${reviews.length} revisões.`);
+  showToast("Backup baixado com sucesso.", "success");
+}
+
+async function importCompleteBackup(file) {
+  let parsed;
+  try { parsed = JSON.parse(await file.text()); }
+  catch { showToast("Não foi possível ler o arquivo JSON.", "error"); return; }
+  const validation = SafetyEngine.validateBackup(parsed);
+  if (!validation.valid) { showToast(validation.error, "error"); return; }
+  const data = validation.data;
+  const questions = data.sessions.reduce((sum,item) => sum + Number(item.questions || 0), 0);
+  const seconds = data.sessions.reduce((sum,item) => sum + Number(item.durationSeconds || 0), 0);
+  const summary = `${data.sessions.length} sessões • ${formatDuration(seconds)} • ${formatNumber(questions)} questões • ${data.reviews.length} revisões`;
+  if (!window.confirm(`Restaurar este backup?\n\n${summary}\n\nUma cópia do estado atual será criada para permitir desfazer.`)) return;
+  if (!captureUndo("Restauração de backup")) return;
+  const restored = SafetyEngine.prepareRestore(getSafetyAppState(), data, Date.now());
+  const importedAudit = Array.isArray(data.auditLog) ? data.auditLog : [];
+  applyRestoredSafetyState(restored, importedAudit);
+  addAuditEntry("restore", "Backup restaurado", summary);
+  showToast("Backup validado e restaurado.", "success");
+}
+
+function catalogImpactSummary(type, id) {
+  const impact = SafetyEngine.getCatalogImpact(getSafetyAppState(), type, id);
+  return `${impact.sessions} sessões • ${formatDuration(impact.durationSeconds)} • ${formatNumber(impact.questions)} questões • ${impact.reviews} revisões`;
+}
+
+function renderArchivedItems() {
+  const subjectsById = new Map(catalog.subjects.map((item) => [item.id, item]));
+  const topicsById = new Map(catalog.topics.map((item) => [item.id, item]));
+  const groups = [
+    { type:"subject", title:"Matérias", items:catalog.subjects.filter((item) => item.archived), path:() => "Matéria completa" },
+    { type:"topic", title:"Temas", items:catalog.topics.filter((item) => item.archived), path:(item) => subjectsById.get(item.subjectId)?.name || "Matéria não encontrada" },
+    { type:"subtopic", title:"Subtemas", items:(catalog.subtopics || []).filter((item) => item.archived), path:(item) => { const topic=topicsById.get(item.topicId); return `${subjectsById.get(topic?.subjectId)?.name || "Matéria"} → ${topic?.name || "Tema"}`; } }
+  ];
+  const total = groups.reduce((sum,group) => sum + group.items.length, 0);
+  archivedItemsList.innerHTML = total ? groups.filter((group) => group.items.length).map((group) => `
+    <section class="archived-group"><strong>${group.title} (${group.items.length})</strong>${group.items.sort((a,b) => a.name.localeCompare(b.name,"pt-BR")).map((item) => `
+      <div class="archived-row"><div><span>${escapeHtml(item.name)}</span><small>${escapeHtml(group.path(item))} • ${catalogImpactSummary(group.type,item.id)}</small></div><button class="ghost-button" type="button" data-restore-type="${group.type}" data-restore-id="${escapeAttribute(item.id)}">Restaurar</button></div>`).join("")}</section>`).join("") : `<div class="empty-state"><strong>Nenhum item arquivado</strong><span>Matérias, temas e subtemas arquivados aparecerão aqui.</span></div>`;
+}
+
+function restoreArchivedCatalogRecord(type, id) {
+  const items = type === "subject" ? catalog.subjects : type === "topic" ? catalog.topics : catalog.subtopics;
+  const record = items.find((item) => item.id === id && item.archived);
+  if (!record) return;
+  const summary = catalogImpactSummary(type, id);
+  if (!window.confirm(`Restaurar “${record.name}”?\n\n${summary}`)) return;
+  if (!captureUndo(`Restauração de ${type === "subject" ? "matéria" : type === "topic" ? "tema" : "subtema"}: ${record.name}`)) return;
+  const now = Date.now();
+  const restore = (item) => { item.archived = false; item.updatedAt = now; };
+  if (type === "subject") {
+    restore(record);
+    catalog.topics.filter((item) => item.subjectId === id).forEach((topic) => { restore(topic); (catalog.subtopics || []).filter((item) => item.topicId === topic.id).forEach(restore); });
+  } else if (type === "topic") {
+    restore(record);
+    const subject = catalog.subjects.find((item) => item.id === record.subjectId); if (subject) restore(subject);
+    (catalog.subtopics || []).filter((item) => item.topicId === id).forEach(restore);
+  } else {
+    restore(record);
+    const topic = catalog.topics.find((item) => item.id === record.topicId); if (topic) { restore(topic); const subject = catalog.subjects.find((item) => item.id === topic.subjectId); if (subject) restore(subject); }
+  }
+  CatalogStorage.save(catalog);
+  addAuditEntry("restore", `Cadastro restaurado: ${record.name}`, summary);
+  renderAll();
+  renderArchivedItems();
+  StudySync.run(true);
+  showToast("Cadastro restaurado.", "success");
 }
 
 function formatToday() {
@@ -287,7 +470,7 @@ function updateAccuracyPreview() {
 function persistAndRender() {
   StudyStorage.save(sessions);
   renderAll();
-  StudySync.run();
+  StudySync.run(true);
 }
 
 function getFilteredSessions() {
@@ -388,7 +571,7 @@ function renderStats() {
 
   const mastered = [...topicMap.values()].filter((item) => item.q >= 20 && (item.c / item.q) * 100 >= 80).length;
   masteredTopicsEl.textContent = mastered;
-  masteredTopicsNoteEl.textContent = `${topicMap.size} subtema${topicMap.size === 1 ? "" : "s"} acompanhado${topicMap.size === 1 ? "" : "s"}`;
+  masteredTopicsNoteEl.textContent = `${topicMap.size} tema${topicMap.size === 1 ? "" : "s"} acompanhado${topicMap.size === 1 ? "" : "s"}`;
 }
 
 function renderSubjectPerformance() {
@@ -439,7 +622,7 @@ function renderDatalists(selectedSubjectId = null, selectedTopicId = null, selec
   const currentTopic = selectedTopicId ?? topicInput.value;
   const activeTopics = catalog.topics.filter((item) => !item.archived && item.subjectId === subjectId).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
   topicInput.disabled = !subjectId;
-  topicInput.innerHTML = subjectId ? `<option value="">Selecione um subtema</option>${activeTopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro a matéria</option>`;
+  topicInput.innerHTML = subjectId ? `<option value="">Selecione um tema</option>${activeTopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro a matéria</option>`;
   if (activeTopics.some((item) => item.id === currentTopic)) topicInput.value = currentTopic;
   const topicId = topicInput.value;
   const currentSubtopic = selectedSubtopicId ?? (subtopicInput?.value || "");
@@ -1287,7 +1470,7 @@ function saveReviewResult(event) {
   StudyStorage.save(sessions);
   closeReviewModalNow();
   renderAll();
-  StudySync.run();
+  StudySync.run(true);
   showToast(`Revisão concluída. Próxima em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}.`, "success");
 }
 
@@ -1410,7 +1593,7 @@ function renderTopicAnalytics() {
       <tr class="empty-table-row">
         <td colspan="9">
           <div class="empty-state">
-            <strong>Nenhum subtema analisado</strong>
+            <strong>Nenhum tema ou subtema analisado</strong>
             <span>Os dados aparecerão aqui conforme você registrar sessões.</span>
           </div>
         </td>
@@ -1641,12 +1824,13 @@ function editMock(id) {
 
 function deleteMock(id) {
   const mock = mocks.find((item) => item.id === id); if (!mock) return;
-  if (!window.confirm(`Excluir o simulado "${mock.name}"?`)) return;
+  if (!window.confirm(`Excluir o simulado “${mock.name}”?\n\nA nota geral e as notas por matéria serão removidas. Uma cópia automática permitirá desfazer.`)) return;
+  if (!captureUndo(`Exclusão de simulado: ${mock.name}`)) return;
   const deletedAt = Date.now();
   syncMeta.mockTombstones = syncMeta.mockTombstones || {};
   syncMeta.mockTombstones[id] = deletedAt;
   mocks = mocks.filter((item) => item.id !== id);
-  MockStorage.save(mocks); SyncStorage.save(syncMeta); renderAll(); StudySync.run(); showToast("Simulado excluído.", "success");
+  MockStorage.save(mocks); SyncStorage.save(syncMeta); addAuditEntry("delete", `Simulado excluído: ${mock.name}`, "A exclusão pode ser desfeita pela central de segurança."); renderAll(); StudySync.run(true); showToast("Simulado excluído.", "success");
 }
 
 function normalizeCatalogName(value) { return CatalogEngine.normalizeName(value); }
@@ -1670,7 +1854,7 @@ function renderCatalog() {
   }).join("");
 }
 function catalogNameExists(items, name, predicate = () => true, exceptId = null) { const n=normalizeCatalogName(name).toLocaleLowerCase("pt-BR"); return items.some((x)=>x.id!==exceptId && predicate(x) && !x.archived && normalizeCatalogName(x.name).toLocaleLowerCase("pt-BR")===n); }
-function saveCatalogAndRefresh(message) { CatalogStorage.save(catalog); renderAll(); StudySync.run(); if(message) showToast(message,"success"); }
+function saveCatalogAndRefresh(message) { CatalogStorage.save(catalog); renderAll(); StudySync.run(true); if(message) showToast(message,"success"); }
 function renameCatalogRecord(type, id) {
   const items = type === "subject" ? catalog.subjects : type === "topic" ? catalog.topics : catalog.subtopics;
   const record = items.find((item) => item.id === id);
@@ -1690,6 +1874,8 @@ function applyCatalogRename(type, id, requestedName) {
   if (!name || name === record.name) return;
   const duplicate = catalogNameExists(items, name, type === "topic" ? (item) => item.subjectId === record.subjectId : type === "subtopic" ? (item) => item.topicId === record.topicId : () => true, id);
   if (duplicate) { showToast("Já existe um cadastro com esse nome.", "error"); return; }
+  const previousName = record.name;
+  if (!captureUndo(`Renomeação de ${previousName}`)) return;
   const now = Date.now();
   record.name = name;
   record.updatedAt = now;
@@ -1716,6 +1902,7 @@ function applyCatalogRename(type, id, requestedName) {
   StudyStorage.save(sessions);
   ReviewStorage.save(reviews);
   MockStorage.save(mocks);
+  addAuditEntry("rename", `${type === "subject" ? "Matéria" : type === "topic" ? "Tema" : "Subtema"} renomeado`, `${previousName} → ${name}`);
   saveCatalogAndRefresh("Nome atualizado.");
 }
 
@@ -1781,6 +1968,8 @@ function applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds) {
   catalog = { subjects: merged.subjects, topics: merged.topics, subtopics: merged.subtopics };
   StudyStorage.save(sessions);
   ReviewStorage.save(reviews);
+  const targetName = catalog.topics.find((item) => item.id === targetTopicId)?.name || "tema escolhido";
+  addAuditEntry("merge", `${merged.summary.mergedTopicIds.length} tema(s) mesclado(s)`, `Destino: ${targetName} • ${merged.summary.movedSessions} sessões • ${merged.summary.movedReviews} revisões`);
   saveCatalogAndRefresh(`${merged.summary.mergedTopicIds.length} tema${merged.summary.mergedTopicIds.length === 1 ? " incorporado" : "s incorporados"} sem perder o histórico.`);
   return true;
 }
@@ -1806,22 +1995,26 @@ function applyCatalogMergeCorrection(subjectId, newTopicName) {
     showToast(corrected.error === "DUPLICATE_TOPIC" ? "Já existe um tema ativo com esse nome." : "Não foi possível recuperar essa junção.", "error");
     return false;
   }
+  if (!captureUndo("Correção da última junção")) return false;
   sessions = corrected.sessions;
   reviews = corrected.reviews;
   catalog = { subjects: corrected.subjects, topics: corrected.topics, subtopics: corrected.subtopics };
   StudyStorage.save(sessions);
   ReviewStorage.save(reviews);
+  addAuditEntry("merge", "Última junção corrigida", `${corrected.summary.movedSessions} sessões e ${corrected.summary.movedReviews} revisões transferidas para ${corrected.summary.newTopicName}.`);
   saveCatalogAndRefresh(`Junção corrigida: registros transferidos para ${corrected.summary.newTopicName}.`);
   return true;
 }
 function archiveCatalogRecord(type,id){
   const items=type==="subject"?catalog.subjects:type==="topic"?catalog.topics:catalog.subtopics;
   const record=items.find((x)=>x.id===id); if(!record)return;
-  const used=type==="subject" ? sessions.some((x)=>x.subjectId===id)||mocks.some((m)=>normalizeSubjectScores(m.subjectScores).some((x)=>x.subjectId===id)) : type==="topic" ? sessions.some((x)=>x.topicId===id) : sessions.some((x)=>x.subtopicId===id);
-  const msg=used?`“${record.name}” já possui histórico. Ele será arquivado, não apagado, e os dados continuarão intactos. Continuar?`:`Arquivar “${record.name}”?`; if(!window.confirm(msg))return;
+  const summary=catalogImpactSummary(type,id);
+  const msg=`Arquivar “${record.name}”?\n\nImpacto preservado: ${summary}\n\nNada será apagado e uma cópia automática permitirá desfazer.`; if(!window.confirm(msg))return;
+  if (!captureUndo(`Arquivamento de ${record.name}`)) return;
   const now=Date.now(); record.archived=true;record.updatedAt=now;
   if(type==="subject") { catalog.topics.filter((x)=>x.subjectId===id).forEach((x)=>{x.archived=true;x.updatedAt=now;(catalog.subtopics||[]).filter((s)=>s.topicId===x.id).forEach((s)=>{s.archived=true;s.updatedAt=now;});}); }
   if(type==="topic") (catalog.subtopics||[]).filter((x)=>x.topicId===id).forEach((x)=>{x.archived=true;x.updatedAt=now;});
+  addAuditEntry("archive", `Cadastro arquivado: ${record.name}`, summary);
   saveCatalogAndRefresh("Cadastro arquivado sem apagar o histórico.");
 }
 
@@ -1840,6 +2033,7 @@ function renderAll() {
   renderMocks();
   renderCatalog();
   renderDatalists();
+  renderSafetyCenter();
 }
 
 function resetForm() {
@@ -1908,13 +2102,14 @@ function deleteSession(id) {
   const session = sessions.find((item) => item.id === id);
   if (!session) return;
 
-  const ok = window.confirm(`Excluir o registro "${session.subject} — ${session.topic}"?`);
+  const linkedReviews = reviews.filter((item) => item.sessionId === id);
+  const ok = window.confirm(`Excluir o registro “${session.subject} → ${session.topic}${session.subtopic ? ` → ${session.subtopic}` : ""}”?\n\n${formatDuration(session.durationSeconds || 0)} • ${formatNumber(session.questions || 0)} questões • ${linkedReviews.length} ${linkedReviews.length === 1 ? "revisão vinculada" : "revisões vinculadas"}\n\nUma cópia automática permitirá desfazer.`);
   if (!ok) return;
 
+  if (!captureUndo(`Exclusão de sessão: ${session.subject} → ${session.topic}`)) return;
   const deletedAt = Date.now();
   sessions = sessions.filter((item) => item.id !== id);
   syncMeta.sessionTombstones[id] = deletedAt;
-  const linkedReviews = reviews.filter((item) => item.sessionId === id);
   if (linkedReviews.length) {
     linkedReviews.forEach((item) => { syncMeta.reviewTombstones[item.id] = deletedAt; });
     reviews = reviews.filter((item) => item.sessionId !== id);
@@ -1923,6 +2118,7 @@ function deleteSession(id) {
   SyncStorage.save(syncMeta);
 
   if (editingId === id) resetForm();
+  addAuditEntry("delete", `Sessão excluída: ${session.subject} → ${session.topic}`, `${formatDuration(session.durationSeconds || 0)} • ${formatNumber(session.questions || 0)} questões`);
   persistAndRender();
   showToast("Registro excluído.", "success");
 }
@@ -2018,7 +2214,7 @@ studyForm.addEventListener("submit", (event) => {
   resetTimerAfterSave();
   resetForm();
   renderAll();
-  StudySync.run();
+  StudySync.run(true);
 });
 
 cancelEditButton.addEventListener("click", resetForm);
@@ -2075,13 +2271,13 @@ if (mockForm) {
     const now = Date.now();
     const record = { id: editingMockId || createId(), ...data, subjectScores: JSON.stringify(data.subjectScores), createdAt: editingMockId ? (mocks.find((m) => m.id === editingMockId)?.createdAt || now) : now, updatedAt: now };
     mocks = editingMockId ? mocks.map((m) => m.id === editingMockId ? record : m) : [...mocks, record];
-    const wasEditing = Boolean(editingMockId); MockStorage.save(mocks); resetMockForm(); renderAll(); StudySync.run(); showToast(wasEditing ? "Simulado atualizado." : "Simulado salvo.", "success");
+    const wasEditing = Boolean(editingMockId); MockStorage.save(mocks); resetMockForm(); renderAll(); StudySync.run(true); showToast(wasEditing ? "Simulado atualizado." : "Simulado salvo.", "success");
   });
 }
 
-if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
+if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} if(!captureUndo(`Criação de matéria: ${name}`))return; const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Matéria criada: ${name}`); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
 if (catalogList) {
-  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); saveCatalogAndRefresh("Subtema adicionado."); } });
+  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} if(!captureUndo(`Criação de tema: ${name}`))return; catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Tema criado: ${name}`); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} if(!captureUndo(`Criação de subtema: ${name}`))return; catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Subtema criado: ${name}`); saveCatalogAndRefresh("Subtema adicionado."); } });
   catalogList.addEventListener("click", (event) => { const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="correct-merge")openCatalogMergeCorrection(subjectNode.dataset.subjectId); if(action==="merge-topics")openCatalogMerge(subjectNode.dataset.subjectId); if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
 }
 if (catalogMergeForm) {
@@ -2094,14 +2290,17 @@ if (catalogMergeForm) {
     let targetTopicId = catalogMergeForm.elements.targetTopicId.value;
     const sourceTopicIds = getSelectedMergeSourceIds();
     if (!sourceTopicIds.length) { showToast("Selecione ao menos um tema para incorporar.", "error"); return; }
+    let newTargetRecord = null;
     if (targetTopicId === "__new__") {
       const name = normalizeCatalogName(catalogMergeForm.elements.newTargetName.value);
       if (!name) { showToast("Informe o nome do novo tema geral.", "error"); return; }
       if (catalogNameExists(catalog.topics, name, (item) => item.subjectId === subjectId)) { showToast("Já existe um tema ativo com esse nome.", "error"); return; }
       const now = Date.now();
       targetTopicId = createId();
-      catalog.topics.push({ id: targetTopicId, subjectId, name, archived: false, createdAt: now, updatedAt: now });
+      newTargetRecord = { id: targetTopicId, subjectId, name, archived: false, createdAt: now, updatedAt: now };
     }
+    if (!captureUndo("Mesclagem de temas")) return;
+    if (newTargetRecord) catalog.topics.push(newTargetRecord);
     if (applyCatalogTopicMerge(subjectId, targetTopicId, sourceTopicIds)) closeCatalogMergeNow();
   });
   closeCatalogMergeModal.addEventListener("click", closeCatalogMergeNow);
@@ -2131,6 +2330,27 @@ if (catalogRenameForm) {
   cancelCatalogRename.addEventListener("click", closeCatalogRenameNow);
   catalogRenameModal.addEventListener("click", (event) => { if (event.target === catalogRenameModal) closeCatalogRenameNow(); });
 }
+
+if (openArchivedItemsButton) {
+  const closeArchivedItems = () => archivedItemsModal.classList.add("hidden");
+  openArchivedItemsButton.addEventListener("click", () => { renderArchivedItems(); archivedItemsModal.classList.remove("hidden"); });
+  closeArchivedItemsModal.addEventListener("click", closeArchivedItems);
+  doneArchivedItems.addEventListener("click", closeArchivedItems);
+  archivedItemsModal.addEventListener("click", (event) => { if (event.target === archivedItemsModal) closeArchivedItems(); });
+  archivedItemsList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-restore-type]");
+    if (button) restoreArchivedCatalogRecord(button.dataset.restoreType, button.dataset.restoreId);
+  });
+}
+
+if (undoLastActionButton) undoLastActionButton.addEventListener("click", undoLastStructuralAction);
+if (exportBackupButton) exportBackupButton.addEventListener("click", exportCompleteBackup);
+if (selectBackupFileButton) selectBackupFileButton.addEventListener("click", () => backupFileInput.click());
+if (backupFileInput) backupFileInput.addEventListener("change", async () => {
+  const file = backupFileInput.files?.[0];
+  backupFileInput.value = "";
+  if (file) await importCompleteBackup(file);
+});
 
 timerStart.addEventListener("click", startTimer);
 timerPause.addEventListener("click", pauseTimer);
@@ -2217,9 +2437,9 @@ reviewModal.addEventListener("click", (event) => {
 });
 
 function setSyncStatus(state, detail = "") {
-  const labels = { local: "Somente local", locked: "Configurar acesso", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
+  const labels = { local: "Somente local", locked: "Configurar acesso", pending: "Alterações pendentes", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
   syncStatus.className = `sync-status ${state}`;
-  syncStatusText.textContent = labels[state] || labels.local;
+  syncStatusText.textContent = detail && ["synced", "pending", "offline", "error", "local", "locked"].includes(state) ? `${labels[state]} • ${detail}` : labels[state] || labels.local;
   syncStatus.title = detail ? `${labels[state]} — ${detail}` : labels[state];
 }
 
@@ -2251,6 +2471,11 @@ authModal.addEventListener("click", (event) => { if (event.target === authModal)
 
 StudySync.init({
   getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], meta: syncMeta }),
+  markPending: () => {
+    syncMeta.pendingChanges = Number(syncMeta.pendingChanges || 0) + 1;
+    SyncStorage.save(syncMeta);
+    setSyncStatus("pending", `${syncMeta.pendingChanges} alteraç${syncMeta.pendingChanges === 1 ? "ão" : "ões"}`);
+  },
   applyState: (state) => {
     sessions = state.sessions;
     reviews = state.reviews;

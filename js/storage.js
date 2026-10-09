@@ -80,11 +80,12 @@ const SyncStorage = {
         subjectTombstones: value.subjectTombstones || {},
         topicTombstones: value.topicTombstones || {},
         subtopicTombstones: value.subtopicTombstones || {},
-        lastSyncAt: value.lastSyncAt || null
+        lastSyncAt: value.lastSyncAt || null,
+        pendingChanges: Number(value.pendingChanges || 0)
       };
     } catch (error) {
       console.error("Erro ao carregar metadados de sincronização:", error);
-      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: null };
+      return { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: null, pendingChanges: 0 };
     }
   },
   save(value) {
@@ -126,4 +127,33 @@ const CatalogStorage = {
   },
   save(catalog) { localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog)); },
   clear() { localStorage.removeItem(CATALOG_STORAGE_KEY); }
+};
+
+const SAFETY_STORAGE_KEY = "studyTracker.safety.v1";
+const SafetyStorage = {
+  load() {
+    try {
+      const data = JSON.parse(localStorage.getItem(SAFETY_STORAGE_KEY) || "{}");
+      return {
+        undoSnapshot: data.undoSnapshot && typeof data.undoSnapshot === "object" ? data.undoSnapshot : null,
+        auditLog: Array.isArray(data.auditLog) ? data.auditLog.slice(0, 100) : []
+      };
+    } catch (error) {
+      console.error("Erro ao carregar dados de segurança:", error);
+      return { undoSnapshot: null, auditLog: [] };
+    }
+  },
+  save(value) {
+    try {
+      localStorage.setItem(SAFETY_STORAGE_KEY, JSON.stringify({
+        undoSnapshot: value?.undoSnapshot || null,
+        auditLog: Array.isArray(value?.auditLog) ? value.auditLog.slice(0, 100) : []
+      }));
+      return true;
+    } catch (error) {
+      console.error("Erro ao salvar a cópia de segurança:", error);
+      return false;
+    }
+  },
+  clear() { localStorage.removeItem(SAFETY_STORAGE_KEY); }
 };

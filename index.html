@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.7.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.8.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -41,13 +41,13 @@
           <span>▦</span> Simulados
         </button>
         <button class="nav-item" data-section="catalogo">
-          <span>◫</span> Matérias e subtemas
+          <span>◫</span> Matérias, temas e subtemas
         </button>
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 1.2</p>
-        <span>Novo motor de revisão adaptativa</span>
+        <p>Versão 1.8</p>
+        <span>Segurança e organização dos dados</span>
       </div>
     </aside>
 
@@ -210,7 +210,7 @@
                 <label>
                   <span>Matéria</span>
                   <select name="subject" id="subjectInput" required><option value="">Selecione uma matéria</option></select>
-                  <small class="field-note">Cadastre matérias em “Matérias e subtemas”.</small>
+                  <small class="field-note">Cadastre a estrutura em “Matérias, temas e subtemas”.</small>
                 </label>
                 <label>
                   <span>Tema</span>
@@ -400,7 +400,7 @@
             <div class="panel-header collapsible-header">
               <div>
                 <span class="panel-kicker">Agenda adaptativa</span>
-                <h3>Próximas revisões por subtema</h3>
+                <h3>Próximas revisões por tema ou subtema</h3>
               </div>
               <button type="button" class="collapse-toggle" data-collapse-target="reviewScheduleContent" aria-expanded="false">
                 <span>Expandir</span><span class="collapse-chevron" aria-hidden="true">⌄</span>
@@ -542,7 +542,7 @@
               <thead>
                 <tr>
                   <th>Matéria</th>
-                  <th>Tema / subtema</th>
+                  <th>Tema → Subtema</th>
                   <th>Questões</th>
                   <th>Acertos</th>
                   <th>Tempo</th>
@@ -556,7 +556,7 @@
                 <tr class="empty-table-row">
                   <td colspan="9">
                     <div class="empty-state">
-                      <strong>Nenhum subtema analisado</strong>
+                      <strong>Nenhum tema ou subtema analisado</strong>
                       <span>Os dados aparecerão aqui conforme você registrar sessões.</span>
                     </div>
                   </td>
@@ -617,7 +617,10 @@
               <span class="panel-kicker">Organização</span>
               <h3>Matérias, temas e subtemas</h3>
             </div>
-            <span class="badge"><strong id="catalogSubjectCount">0</strong>&nbsp; matérias ativas</span>
+            <div class="catalog-header-actions">
+              <button class="ghost-button" id="openArchivedItems" type="button">Itens arquivados</button>
+              <span class="badge"><strong id="catalogSubjectCount">0</strong>&nbsp; matérias ativas</span>
+            </div>
           </div>
           <p class="catalog-help">Cadastre cada matéria uma vez. Dentro dela, organize os temas e, quando necessário, subtemas opcionais. Clique em uma matéria ou tema para expandir. Renomear ou arquivar preserva o histórico pelos identificadores.</p>
           <form id="subjectCatalogForm" class="catalog-create-row">
@@ -625,8 +628,38 @@
             <button class="primary-button" type="submit">+ Adicionar matéria</button>
           </form>
           <div id="catalogList" class="catalog-list">
-            <div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os subtemas.</span></div>
+            <div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os temas.</span></div>
           </div>
+        </section>
+
+        <section class="panel safety-panel" id="seguranca-dados">
+          <div class="panel-header">
+            <div>
+              <span class="panel-kicker">Segurança dos dados</span>
+              <h3>Backup, desfazer e histórico</h3>
+            </div>
+            <span class="badge">Armazenado neste dispositivo</span>
+          </div>
+          <div class="safety-grid">
+            <article class="safety-card">
+              <span>Última ação reversível</span>
+              <strong id="undoActionLabel">Nenhuma ação disponível</strong>
+              <small id="undoActionTime">Mudanças no cadastro e exclusões criam uma cópia automática.</small>
+              <button class="ghost-button" id="undoLastAction" type="button" disabled>Desfazer última ação</button>
+            </article>
+            <article class="safety-card">
+              <span>Backup completo</span>
+              <strong>Exportar ou restaurar JSON</strong>
+              <small>Inclui estudos, revisões, simulados, catálogo e histórico de alterações. O segredo de acesso nunca é exportado.</small>
+              <div class="safety-actions">
+                <button class="ghost-button" id="exportBackup" type="button">Baixar backup</button>
+                <button class="ghost-button" id="selectBackupFile" type="button">Restaurar backup</button>
+                <input class="hidden" id="backupFileInput" type="file" accept="application/json,.json" />
+              </div>
+            </article>
+          </div>
+          <div class="audit-header"><div><strong>Histórico de alterações</strong><small>Últimas ações realizadas neste navegador.</small></div><span id="auditCount" class="counter">0</span></div>
+          <div id="auditLogList" class="audit-log-list"><div class="empty-state compact"><strong>Nenhuma alteração estrutural registrada</strong><span>As próximas ações aparecerão aqui.</span></div></div>
         </section>
 
         <section class="panel history-panel" id="historico">
@@ -650,7 +683,7 @@
                 <tr>
                   <th>Data</th>
                   <th>Matéria</th>
-                  <th>Tema / subtema</th>
+                  <th>Tema → Subtema</th>
                   <th>Questões</th>
                   <th>Acertos</th>
                   <th>Tempo</th>
@@ -777,6 +810,18 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="archivedItemsModal">
+    <div class="modal-card archived-items-card" role="dialog" aria-modal="true" aria-labelledby="archivedItemsTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Organização</span><h3 id="archivedItemsTitle">Central de itens arquivados</h3></div>
+        <button class="icon-button" id="closeArchivedItemsModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <p class="auth-note">Restaurar uma matéria ou tema também restaura sua estrutura descendente para que ela volte a ser utilizável.</p>
+      <div id="archivedItemsList" class="archived-items-list"></div>
+      <div class="modal-actions"><button class="ghost-button" id="doneArchivedItems" type="button">Concluir</button></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">Pronto.</div>
   <div class="modal-backdrop hidden" id="authModal">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -802,11 +847,12 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=1.3.0"></script>
+  <script src="js/storage.js?v=1.8.0"></script>
   <script src="js/api.js?v=1.1.2"></script>
-  <script src="js/sync.js?v=1.4.0"></script>
+  <script src="js/sync.js?v=1.8.0"></script>
   <script src="js/reviews.js?v=1.4.0"></script>
   <script src="js/catalog.js?v=1.5.1"></script>
-  <script src="js/app.js?v=1.7.0"></script>
+  <script src="js/safety.js?v=1.8.0"></script>
+  <script src="js/app.js?v=1.8.0"></script>
 </body>
 </html>

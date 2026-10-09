@@ -34,13 +34,17 @@ const StudySync = (() => {
   }
 
   const setStatus = (state, detail = "") => adapter?.setStatus(state, detail);
+  const pendingLabel = (count) => `${count} alteraç${count === 1 ? "ão pendente" : "ões pendentes"}`;
 
-  async function run() {
-    if (!adapter || !StudyApi.isConfigured()) { setStatus("local", "Configure a nuvem"); return; }
-    if (!StudyApi.hasToken()) { setStatus("locked", "Segredo ausente ou incorreto"); return; }
+  async function run(localChanges = false) {
+    if (!adapter) return;
+    if (localChanges) adapter.markPending?.();
+    const pending = Number(adapter.getState()?.meta?.pendingChanges || 0);
+    if (!StudyApi.isConfigured()) { setStatus("local", pending ? `${pendingLabel(pending)} apenas neste dispositivo` : "Configure a nuvem"); return; }
+    if (!StudyApi.hasToken()) { setStatus("locked", pending ? pendingLabel(pending) : "Segredo ausente ou incorreto"); return; }
     if (running) { queued = true; return; }
     running = true;
-    setStatus("syncing");
+    setStatus("syncing", pending ? pendingLabel(pending) : "Conferindo dados");
     try {
       const local = adapter.getState();
       const remote = await StudyApi.getAll();
@@ -51,14 +55,16 @@ const StudySync = (() => {
       const topics = mergeRecords(local.topics || [], remote.topics || [], local.meta.topicTombstones || {});
       const subtopics = mergeRecords(local.subtopics || [], remote.subtopics || [], local.meta.subtopicTombstones || {});
       const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, subtopics, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {}, subtopicTombstones: local.meta.subtopicTombstones || {} });
-      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: Date.now() };
+      const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, lastSyncAt: Date.now(), pendingChanges: 0 };
       adapter.applyState({ sessions: mergeRecords(sessions, normalizeRecordDates(result.sessions), {}), reviews: mergeRecords(reviews, normalizeRecordDates(result.reviews), {}), mocks: mergeRecords(mocks, normalizeRecordDates(result.mocks), {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), meta: nextMeta });
-      setStatus("synced", new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+      const total = sessions.length + reviews.length + mocks.length + subjects.length + topics.length + subtopics.length;
+      setStatus("synced", `${new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} • ${total} registros`);
     } catch (error) {
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));
       if (String(error.message).includes("UNAUTHORIZED")) StudyApi.clearToken();
       if (!authError) console.error("Falha de sincronização:", error);
-      setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline", authError ? "Segredo ausente ou incorreto" : "");
+      const remaining = Number(adapter.getState()?.meta?.pendingChanges || 0);
+      setStatus(authError ? "locked" : navigator.onLine ? "error" : "offline", authError ? "Segredo ausente ou incorreto" : remaining ? pendingLabel(remaining) : "Dados locais preservados");
       if (!authError) {
         clearTimeout(retryTimer);
         retryTimer = setTimeout(run, 30000);

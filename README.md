@@ -55,7 +55,7 @@ Ao publicar esta versão, atualize também o `backend/Code.gs` no Google Apps Sc
 
 ## V1.1.1 — Catálogo estruturado
 
-Matérias e subtemas agora são cadastrados uma única vez e possuem IDs persistentes. Sessões e revisões guardam `subjectId`/`topicId`, os selects evitam variações de digitação e simulados reutilizam o catálogo de matérias. Renomear preserva vínculos; arquivar não apaga histórico. O backend sincroniza as abas `Subjects` e `Topics`.
+Matérias, temas e subtemas agora são cadastrados uma única vez e possuem IDs persistentes. Sessões e revisões guardam `subjectId`/`topicId`, os seletores evitam variações de digitação e simulados reutilizam o catálogo de matérias. Renomear preserva vínculos; arquivar não apaga histórico. O backend sincroniza as abas `Subjects` e `Topics`.
 
 ## V1.2 — Motor de revisão adaptativa
 
@@ -78,3 +78,11 @@ A interface ganhou maior contraste, superfícies mais discretas, indicadores com
 ## V1.7 — Períodos e eficiência dos gráficos
 
 Os quatro gráficos compartilham um filtro de 7, 30 ou 90 dias, ano atual, últimos 12 meses, todo o histórico ou intervalo personalizado. O agrupamento muda automaticamente entre dia, semana e mês. A eficiência passou a ser um ranking de questões por hora, acompanhado por taxa de acertos, tempo e volume. Listas com muitas matérias usam rolagem interna e mantêm as quatro caixas alinhadas.
+
+## V1.8 — Segurança e organização
+
+A central de segurança reúne os itens arquivados e permite restaurar matérias, temas e subtemas com seus vínculos. Alterações estruturais criam uma cópia local automática, permitindo desfazer a ação mais recente sem perder sessões, horas, questões ou revisões.
+
+O backup completo em JSON inclui sessões, revisões, simulados e todo o catálogo. A restauração valida a estrutura e os identificadores antes de substituir os dados, cria uma cópia do estado atual e sincroniza as alterações de forma compatível com os tombstones. Operações grandes mostram previamente seu impacto em registros, tempo, questões e revisões.
+
+O histórico local registra criações, renomeações, mesclagens, arquivamentos, restaurações e exclusões. O indicador de sincronização informa o horário da última conclusão, a quantidade total de registros, alterações pendentes e eventuais erros. Os textos da interface seguem a hierarquia **Matéria → Tema → Subtema**.

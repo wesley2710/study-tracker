@@ -55,6 +55,35 @@ assert.equal(merge([{ id: "a", updatedAt: 4 }], [], { a: 3 }).length, 1, "ediç�
 assert.equal(merge([{ id: "same", updatedAt: 1 }], [{ id: "same", updatedAt: 1 }], {}).length, 1, "id não duplica");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /!StudyApi\.hasToken\(\).*setStatus\("locked"/, "segredo ausente não gera tentativa nem erro de console");
 
+const safetyContext = {};
+vm.createContext(safetyContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/safety.js"), "utf8")}\nthis.safety = SafetyEngine;`, safetyContext);
+const safety = safetyContext.safety;
+const safetyState = {
+  sessions: [{ id: "session-1", subjectId: "subject-1", topicId: "topic-1", subtopicId: "subtopic-1", questions: 25, durationSeconds: 5400, updatedAt: 1 }],
+  reviews: [{ id: "review-1", subjectId: "subject-1", topicId: "topic-1", subtopicId: "subtopic-1", updatedAt: 1 }],
+  mocks: [{ id: "mock-1", updatedAt: 1 }],
+  subjects: [{ id: "subject-1", name: "Português", updatedAt: 1 }],
+  topics: [{ id: "topic-1", subjectId: "subject-1", name: "Interpretação", updatedAt: 1 }],
+  subtopics: [{ id: "subtopic-1", topicId: "topic-1", name: "Inferência", updatedAt: 1 }],
+  meta: { sessionTombstones: {}, reviewTombstones: {} }
+};
+const completeBackup = safety.createBackup(safetyState, [{ id: "audit-1", label: "Teste" }], 1000);
+assert.equal(safety.validateBackup(completeBackup).valid, true, "backup completo é validado");
+const invalidBackup = JSON.parse(JSON.stringify(completeBackup));
+invalidBackup.data.sessions.push({ ...invalidBackup.data.sessions[0] });
+assert.equal(safety.validateBackup(invalidBackup).valid, false, "backup com IDs duplicados é rejeitado");
+const orphanBackup = JSON.parse(JSON.stringify(completeBackup));
+orphanBackup.data.topics[0].subjectId = "subject-missing";
+assert.equal(safety.validateBackup(orphanBackup).valid, false, "backup com vínculo estrutural quebrado é rejeitado");
+const subjectImpact = safety.getCatalogImpact(safetyState, "subject", "subject-1");
+assert.deepEqual(JSON.parse(JSON.stringify(subjectImpact)), { sessions: 1, reviews: 1, questions: 25, durationSeconds: 5400, subjects: 1, topics: 1, subtopics: 1 }, "resumo estrutural inclui horas, questões e revisões descendentes");
+const restoredBackup = JSON.parse(JSON.stringify(completeBackup.data));
+restoredBackup.sessions = [];
+const restoredState = safety.prepareRestore(safetyState, restoredBackup, 2000);
+assert.equal(restoredState.meta.sessionTombstones["session-1"], 2000, "restauração cria tombstone para registro ausente e evita reaparecimento remoto");
+assert.equal(restoredState.subjects[0].updatedAt, 2000, "registros restaurados vencem versões remotas antigas");
+
 const appSource = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 assert.match(appSource, /latestReview\.nextInterval \|\| ReviewEngine\.getInitialInterval/, "render usa intervalo persistido");
 assert.match(appSource, /: ReviewEngine\.getInitialInterval\(\)/, "estudo com qualquer percentual agenda primeira revisão em 3 dias");
@@ -150,6 +179,12 @@ assert.match(htmlText, /id="timeExactDate"/, "banco de horas aceita data especí
 assert.match(htmlText, /id="chartPeriodFilter"/, "os quatro gráficos possuem filtro de período compartilhado");
 assert.match(htmlText, /id="efficiencyRanking"/, "eficiência usa ranking estruturado por matéria");
 assert.match(htmlText, /class="chart-wrap chart-scroll"/, "muitas matérias usam rolagem sem aumentar a caixa");
+assert.match(htmlText, /id="archivedItemsModal"/, "central de arquivados possui modal de restauração");
+assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backup completo");
+assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
+assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
+assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
+assert.match(htmlText, /js\/safety\.js\?v=1\.8\.0/, "motor de segurança é carregado na versão atual");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
@@ -161,6 +196,11 @@ assert.match(backendText, /subtopicId/, "Apps Script suporta subtopicId retrocom
 assert.match(backendText, /const missing = spec\.headers\.filter/, "migração acrescenta cabeçalhos ausentes por nome");
 assert.doesNotMatch(backendText, /clearContents\(/, "migração de planilha nunca limpa dados existentes");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /subtopicTombstones/, "sincronização inclui tombstones de subtemas");
+assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /pendingChanges/, "sincronização informa alterações pendentes");
+assert.match(appText, /captureUndo\(`Arquivamento de/, "arquivamento cria cópia automática antes da alteração");
+assert.match(appText, /captureUndo\("Mesclagem de temas"\)/, "mesclagem cria cópia automática antes da alteração");
+assert.match(appText, /StudySync\.run\(true\)/, "alterações locais são marcadas como pendentes até sincronizar");
+assert.match(appText, /Selecione um tema/, "vocabulário Matéria → Tema → Subtema foi padronizado");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.
@@ -172,4 +212,4 @@ assert.match(appSource, /allowsNoQuestions = data\.activityType === "study" && d
 assert.match(appSource, /data\.questions === 0 && data\.correct !== 0/, "sessão sem questões não aceita acertos positivos");
 assert.match(appSource, /Number\.isFinite\(item\.percentage\) \? formatPercent\(item\.percentage\) : "—"/, "assunto sem questões exibe traço em vez de 0%");
 
-console.log("OK: verificações de revisão, reinício de ciclo, sincronização móvel, fila, desempenho, merge, catálogo e renderização.");
+console.log("OK: verificações de revisão, segurança, backup, sincronização, fila, desempenho, merge, catálogo e renderização.");
