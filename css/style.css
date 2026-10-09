@@ -1000,7 +1000,7 @@ td { color: #dbe5ee; }
 
 .session-mode-row { display:flex; gap:10px; margin-bottom:14px; }
 .mode-option { cursor:pointer; }
-.mode-option input { position:absolute; opacity:0; pointer-events:none; }
+.mode-option input { position:absolute; width:auto; opacity:0; pointer-events:none; }
 .mode-option span { display:inline-flex; padding:9px 13px; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:11px; font-weight:700; }
 .mode-option input:checked + span { color:var(--text); background:var(--surface-3); border-color:rgba(255,255,255,.16); }
 
