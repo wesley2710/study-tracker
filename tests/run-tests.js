@@ -122,6 +122,18 @@ assert.equal(mergedTopics.reviews[0].topic, "Segurado obrigatório", "histórico
 assert.equal(mergedTopics.reviews[0].reviewKey, "Previdenciário|||Segurado obrigatório|||", "chave da revisão acompanha o tema geral");
 assert.equal(mergedTopics.topics.find((item) => item.id === "employee").archived, true, "tema incorporado é arquivado");
 assert.equal(mergedTopics.subtopics.find((item) => item.id === "unique-sub").topicId, "target", "subtema único é movido ao destino");
+const recoverableMerge = catalogEngine.findLatestMerge(mergedTopics, "subject");
+assert.equal(recoverableMerge.targetTopicName, "Segurado obrigatório", "última junção pode ser identificada pelo lote de atualização");
+assert.equal(recoverableMerge.movedSessions, 1, "recuperação identifica somente sessões movimentadas");
+let recoveryId = 0;
+const correctedMerge = catalogEngine.redirectLatestMerge(mergedTopics, { subjectId: "subject", newTopicName: "Segurados reunidos", createId: () => `recovery-${++recoveryId}`, timestamp: 700 });
+assert.equal(correctedMerge.changed, true, "última junção pode ser redirecionada");
+assert.equal(correctedMerge.sessions[0].topic, "Segurados reunidos", "sessão incorporada vai para o novo tema correto");
+assert.equal(correctedMerge.sessions[0].durationSeconds, 3600, "correção preserva as horas");
+assert.equal(correctedMerge.sessions[0].questions, 20, "correção preserva as questões");
+assert.equal(correctedMerge.reviews[0].topic, "Segurados reunidos", "revisão incorporada vai para o novo tema correto");
+assert.equal(correctedMerge.topics.find((item) => item.id === "target").name, "Segurado obrigatório", "histórico original do destino não é renomeado");
+assert.equal(catalogEngine.findLatestMerge(correctedMerge, "subject"), null, "junção corrigida não volta a ser oferecida");
 
 const appText = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 const backendText = fs.readFileSync(path.join(root, "backend/Code.gs"), "utf8");

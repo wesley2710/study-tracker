@@ -160,5 +160,103 @@ const CatalogEngine = (() => {
     };
   }
 
-  return { normalizeName, migrate, mergeTopics };
+  function findLatestMerge(state, subjectId = null) {
+    const topics = state.topics || [];
+    const candidates = [];
+    const groups = new Map();
+
+    topics.filter((item) => item.archived && Number(item.updatedAt) > 0 && (!subjectId || item.subjectId === subjectId)).forEach((item) => {
+      const key = `${item.subjectId}|||${Number(item.updatedAt)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+
+    groups.forEach((sources) => {
+      const mergeTimestamp = Number(sources[0].updatedAt);
+      const mergeSubjectId = sources[0].subjectId;
+      const target = topics.find((item) => !item.archived && item.subjectId === mergeSubjectId && Number(item.updatedAt) === mergeTimestamp);
+      if (!target) return;
+      const movedSessions = (state.sessions || []).filter((item) => item.topicId === target.id && Number(item.updatedAt) === mergeTimestamp);
+      const movedReviews = (state.reviews || []).filter((item) => item.topicId === target.id && Number(item.updatedAt) === mergeTimestamp);
+      if (!movedSessions.length && !movedReviews.length) return;
+      candidates.push({
+        subjectId: mergeSubjectId,
+        targetTopicId: target.id,
+        targetTopicName: target.name,
+        sourceTopicIds: sources.map((item) => item.id),
+        sourceTopicNames: sources.map((item) => item.name),
+        mergeTimestamp,
+        movedSessions: movedSessions.length,
+        movedReviews: movedReviews.length
+      });
+    });
+
+    return candidates.sort((a, b) => b.mergeTimestamp - a.mergeTimestamp)[0] || null;
+  }
+
+  function redirectLatestMerge(state, options) {
+    const merge = findLatestMerge(state, options?.subjectId);
+    const name = normalizeName(options?.newTopicName);
+    const timestamp = Number(options?.timestamp) || Date.now();
+    if (!merge || !name || typeof options?.createId !== "function") return { ...state, changed: false };
+    const duplicate = (state.topics || []).some((item) => item.subjectId === merge.subjectId && !item.archived && comparableName(item.name) === comparableName(name));
+    if (duplicate) return { ...state, changed: false, error: "DUPLICATE_TOPIC" };
+
+    const subject = (state.subjects || []).find((item) => item.id === merge.subjectId);
+    const newTopic = { id: options.createId(), subjectId: merge.subjectId, name, archived: false, createdAt: timestamp, updatedAt: timestamp };
+    const topics = (state.topics || []).map((item) => item.id === merge.targetTopicId ? { ...item, updatedAt: timestamp } : { ...item });
+    topics.push(newTopic);
+    const subtopics = (state.subtopics || []).map((item) => ({ ...item }));
+    const createdSubtopics = new Map();
+
+    const isMovedRecord = (record) => record.topicId === merge.targetTopicId && Number(record.updatedAt) === merge.mergeTimestamp;
+    const moveRecord = (record) => {
+      if (!isMovedRecord(record)) return record;
+      let subtopicId = null;
+      const subtopicName = normalizeName(record.subtopic);
+      if (subtopicName) {
+        const comparable = comparableName(subtopicName);
+        let subtopic = createdSubtopics.get(comparable);
+        if (!subtopic) {
+          subtopic = { id: options.createId(), topicId: newTopic.id, name: subtopicName, archived: false, createdAt: timestamp, updatedAt: timestamp };
+          createdSubtopics.set(comparable, subtopic);
+          subtopics.push(subtopic);
+        }
+        subtopicId = subtopic.id;
+      }
+      const subjectName = subject?.name || record.subject;
+      return {
+        ...record,
+        subjectId: merge.subjectId,
+        topicId: newTopic.id,
+        subtopicId,
+        subject: subjectName,
+        topic: newTopic.name,
+        subtopic: subtopicName,
+        reviewKey: record.reviewKey ? `${subjectName}|||${newTopic.name}|||${subtopicName}` : record.reviewKey,
+        updatedAt: timestamp
+      };
+    };
+
+    const sessions = (state.sessions || []).map(moveRecord);
+    const reviews = (state.reviews || []).map((record) => {
+      const moved = moveRecord(record);
+      return moved === record ? record : { ...moved, reviewKey: `${moved.subject}|||${moved.topic}|||${moved.subtopic || ""}` };
+    });
+    const movedSessions = sessions.filter((item, index) => item !== (state.sessions || [])[index]).length;
+    const movedReviews = reviews.filter((item, index) => item !== (state.reviews || [])[index]).length;
+    if (!movedSessions && !movedReviews) return { ...state, changed: false };
+
+    return {
+      ...state,
+      sessions,
+      reviews,
+      topics,
+      subtopics,
+      changed: true,
+      summary: { newTopicId: newTopic.id, newTopicName: newTopic.name, movedSessions, movedReviews, previousTargetName: merge.targetTopicName }
+    };
+  }
+
+  return { normalizeName, migrate, mergeTopics, findLatestMerge, redirectLatestMerge };
 })();

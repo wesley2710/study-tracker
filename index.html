@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.5.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.5.1" />
 </head>
 <body>
   <div class="app-shell">
@@ -715,6 +715,7 @@
       </div>
       <form id="catalogMergeForm">
         <label><span>Tema que será mantido</span><select name="targetTopicId" required></select></label>
+        <label id="catalogMergeNewTarget"><span>Nome do novo tema geral</span><input type="text" name="newTargetName" maxlength="160" placeholder="Ex.: Segurados obrigatórios" /></label>
         <fieldset class="merge-source-fieldset">
           <legend>Temas que serão incorporados</legend>
           <div id="catalogMergeSources" class="merge-source-list"></div>
@@ -724,6 +725,24 @@
         <div class="modal-actions">
           <button class="ghost-button" id="cancelCatalogMerge" type="button">Cancelar</button>
           <button class="primary-button" type="submit">Confirmar junção</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="catalogMergeCorrectionModal">
+    <div class="modal-card catalog-merge-card" role="dialog" aria-modal="true" aria-labelledby="catalogMergeCorrectionTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Recuperação</span><h3 id="catalogMergeCorrectionTitle">Corrigir última junção</h3></div>
+        <button class="icon-button" id="closeCatalogMergeCorrectionModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <form id="catalogMergeCorrectionForm">
+        <div id="catalogMergeCorrectionSummary" class="merge-summary"></div>
+        <label><span>Novo tema que receberá os registros incorporados</span><input type="text" name="newTopicName" maxlength="160" value="Segurados obrigatórios" required /></label>
+        <p class="auth-note">Somente os registros movimentados pela última junção serão retirados do destino incorreto. O histórico original desse destino permanecerá nele.</p>
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelCatalogMergeCorrection" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Corrigir junção</button>
         </div>
       </form>
     </div>
@@ -758,7 +777,7 @@
   <script src="js/api.js?v=1.1.2"></script>
   <script src="js/sync.js?v=1.4.0"></script>
   <script src="js/reviews.js?v=1.4.0"></script>
-  <script src="js/catalog.js?v=1.5.0"></script>
-  <script src="js/app.js?v=1.5.0"></script>
+  <script src="js/catalog.js?v=1.5.1"></script>
+  <script src="js/app.js?v=1.5.1"></script>
 </body>
 </html>
