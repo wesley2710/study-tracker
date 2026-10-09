@@ -74,3 +74,7 @@ O formulário também permite criar um novo tema geral durante a própria junç�
 ## V1.6 — Refinamento visual
 
 A interface ganhou maior contraste, superfícies mais discretas, indicadores com hierarquia mais clara, barras de domínio coloridas por faixa de desempenho e gráficos com escalas, linhas, pontos e tooltips adaptados ao painel escuro. No celular, os quatro indicadores principais permanecem em uma grade compacta de duas colunas.
+
+## V1.7 — Períodos e eficiência dos gráficos
+
+Os quatro gráficos compartilham um filtro de 7, 30 ou 90 dias, ano atual, últimos 12 meses, todo o histórico ou intervalo personalizado. O agrupamento muda automaticamente entre dia, semana e mês. A eficiência passou a ser um ranking de questões por hora, acompanhado por taxa de acertos, tempo e volume. Listas com muitas matérias usam rolagem interna e mantêm as quatro caixas alinhadas.

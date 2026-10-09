@@ -1135,8 +1135,20 @@ td { color: #dbe5ee; }
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:18px;
-  margin-top:18px;
+  margin-top:12px;
 }
+
+.chart-section { margin-top:18px; scroll-margin-top:100px; }
+.chart-controls { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:16px 18px; border:1px solid var(--border); border-radius:14px; background:rgba(12,17,24,.82); }
+.chart-controls>div:first-child strong,.chart-controls>div:first-child small { display:block; }
+.chart-controls>div:first-child strong { margin-top:4px; font-size:14px; }
+.chart-controls>div:first-child small { margin-top:4px; color:var(--muted); font-size:10px; }
+.chart-period-actions { display:flex; align-items:end; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+.chart-period-actions>select { min-width:178px; border:1px solid var(--border); border-radius:10px; background:#090e14; color:var(--text); padding:10px 12px; }
+.chart-custom-period { display:flex; align-items:end; gap:8px; }
+.chart-custom-period label span { margin-bottom:4px; }
+.chart-custom-period input { width:142px; padding:9px 10px; }
+.chart-caption { display:block; margin-top:6px; color:var(--muted); font-size:10px; font-weight:400; }
 
 .chart-panel {
   min-height:390px;
@@ -1147,11 +1159,35 @@ td { color: #dbe5ee; }
   height:310px;
 }
 
+.chart-scroll { overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:var(--border-strong) transparent; }
+.chart-scroll-inner { position:relative; min-height:310px; }
+.efficiency-ranking { height:310px; overflow-y:auto; display:grid; align-content:start; gap:14px; padding-right:5px; scrollbar-width:thin; scrollbar-color:var(--border-strong) transparent; }
+.efficiency-row { display:grid; gap:7px; padding-bottom:13px; border-bottom:1px solid var(--border); }
+.efficiency-row:last-child { border-bottom:0; }
+.efficiency-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.efficiency-head strong { font-size:11px; }
+.efficiency-head span { color:var(--text); font-size:11px; font-weight:800; font-variant-numeric:tabular-nums; }
+.efficiency-track { height:7px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.07); }
+.efficiency-track i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+.efficiency-row.strong .efficiency-track i { background:linear-gradient(90deg,#219a6a,var(--success)); }
+.efficiency-row.attention .efficiency-track i { background:linear-gradient(90deg,#c88c28,var(--warning)); }
+.efficiency-row.priority .efficiency-track i { background:linear-gradient(90deg,#bd4f50,var(--danger)); }
+.efficiency-row small { color:var(--muted); font-size:10px; }
+
 @media (max-width:980px) {
   .smart-study-grid,
   .charts-grid {
     grid-template-columns:1fr;
   }
+}
+
+@media (max-width:700px) {
+  .chart-controls { align-items:stretch; flex-direction:column; }
+  .chart-period-actions { align-items:stretch; justify-content:stretch; flex-direction:column; }
+  .chart-period-actions>select { width:100%; }
+  .chart-custom-period { width:100%; }
+  .chart-custom-period label { flex:1; }
+  .chart-custom-period input { width:100%; }
 }
 
 @media (max-width:620px) {

@@ -67,6 +67,10 @@ assert.match(appSource, /ReviewEngine\.shouldResetCycle\(latestNormalStudySessio
 assert.match(appSource, /cycleStudySession = studyStartsNewCycle \? latestNormalStudySession : latestStudySession/, "bateria independente posterior não desloca a data-base do ciclo reiniciado");
 assert.match(appSource, /subject-row \$\{classify\(item\.percentage\)\.className\}/, "barras por matéria recebem cor conforme o desempenho");
 assert.match(appSource, /Chart\.defaults\.color = "#8292a6"/, "gráficos usam tema visual integrado ao painel");
+assert.match(appSource, /activeChartPeriod = '30'/, "gráficos iniciam com período útil de 30 dias");
+assert.match(appSource, /getChartGranularity\(range\)/, "agrupamento dos gráficos se adapta ao período");
+assert.match(appSource, /questionsPerHour/, "eficiência compara questões por hora por matéria");
+assert.doesNotMatch(appSource, /type: "scatter"/, "gráfico de bolinhas foi substituído por ranking legível");
 
 const catalogContext = {};
 vm.createContext(catalogContext);
@@ -143,6 +147,9 @@ const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.match(htmlText, /id="performanceDetailsButton"/, "Ver detalhes possui alvo acionável");
 assert.match(appText, /topic-analysis-panel.*scrollIntoView/, "Ver detalhes navega para desempenho detalhado");
 assert.match(htmlText, /id="timeExactDate"/, "banco de horas aceita data específica");
+assert.match(htmlText, /id="chartPeriodFilter"/, "os quatro gráficos possuem filtro de período compartilhado");
+assert.match(htmlText, /id="efficiencyRanking"/, "eficiência usa ranking estruturado por matéria");
+assert.match(htmlText, /class="chart-wrap chart-scroll"/, "muitas matérias usam rolagem sem aumentar a caixa");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");

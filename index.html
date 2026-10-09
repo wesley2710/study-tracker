@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.6.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.7.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -324,12 +324,37 @@
           </article>
         </section>
 
-        <section class="charts-grid" id="graficos">
+        <section class="chart-section" id="graficos">
+          <div class="chart-controls">
+            <div>
+              <span class="panel-kicker">Análise histórica</span>
+              <strong>Período dos gráficos</strong>
+              <small id="chartPeriodSummary">Últimos 30 dias</small>
+            </div>
+            <div class="chart-period-actions">
+              <select id="chartPeriodFilter" aria-label="Período dos gráficos">
+                <option value="7">7 dias</option>
+                <option value="30" selected>30 dias</option>
+                <option value="90">90 dias</option>
+                <option value="year">Este ano</option>
+                <option value="365">Últimos 12 meses</option>
+                <option value="all">Todo o período</option>
+                <option value="custom">Personalizado</option>
+              </select>
+              <div id="chartCustomPeriod" class="chart-custom-period hidden">
+                <label><span>De</span><input type="date" id="chartStartDate" /></label>
+                <label><span>Até</span><input type="date" id="chartEndDate" /></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="charts-grid">
           <article class="panel chart-panel">
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Evolução</span>
                 <h3>Desempenho ao longo do tempo</h3>
+                <small class="chart-caption" id="performanceChartCaption">Taxa de acertos no período</small>
               </div>
             </div>
             <div class="chart-wrap"><canvas id="performanceChart"></canvas></div>
@@ -340,16 +365,18 @@
               <div>
                 <span class="panel-kicker">Distribuição</span>
                 <h3>Horas por matéria</h3>
+                <small class="chart-caption" id="studyHoursChartCaption">Tempo registrado no período</small>
               </div>
             </div>
-            <div class="chart-wrap"><canvas id="studyHoursChart"></canvas></div>
+            <div class="chart-wrap chart-scroll"><div class="chart-scroll-inner" id="studyHoursChartInner"><canvas id="studyHoursChart"></canvas></div></div>
           </article>
 
           <article class="panel chart-panel">
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Volume</span>
-                <h3>Questões por dia</h3>
+                <h3 id="questionsChartTitle">Questões por dia</h3>
+                <small class="chart-caption" id="questionsChartCaption">Volume realizado no período</small>
               </div>
             </div>
             <div class="chart-wrap"><canvas id="questionsChart"></canvas></div>
@@ -359,11 +386,13 @@
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Eficiência</span>
-                <h3>Tempo x desempenho</h3>
+                <h3>Eficiência por matéria</h3>
+                <small class="chart-caption" id="efficiencyChartCaption">Questões por hora; a cor indica a taxa de acertos</small>
               </div>
             </div>
-            <div class="chart-wrap"><canvas id="efficiencyChart"></canvas></div>
+            <div id="efficiencyRanking" class="efficiency-ranking"></div>
           </article>
+          </div>
         </section>
 
         <section class="reviews-workspace">
@@ -778,6 +807,6 @@
   <script src="js/sync.js?v=1.4.0"></script>
   <script src="js/reviews.js?v=1.4.0"></script>
   <script src="js/catalog.js?v=1.5.1"></script>
-  <script src="js/app.js?v=1.6.0"></script>
+  <script src="js/app.js?v=1.7.0"></script>
 </body>
 </html>

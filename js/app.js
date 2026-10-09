@@ -96,7 +96,18 @@ const smartInsightEl = document.querySelector("#smartInsight");
 const performanceChartEl = document.querySelector("#performanceChart");
 const studyHoursChartEl = document.querySelector("#studyHoursChart");
 const questionsChartEl = document.querySelector("#questionsChart");
-const efficiencyChartEl = document.querySelector("#efficiencyChart");
+const studyHoursChartInner = document.querySelector("#studyHoursChartInner");
+const efficiencyRankingEl = document.querySelector("#efficiencyRanking");
+const chartPeriodFilter = document.querySelector("#chartPeriodFilter");
+const chartCustomPeriod = document.querySelector("#chartCustomPeriod");
+const chartStartDate = document.querySelector("#chartStartDate");
+const chartEndDate = document.querySelector("#chartEndDate");
+const chartPeriodSummary = document.querySelector("#chartPeriodSummary");
+const performanceChartCaption = document.querySelector("#performanceChartCaption");
+const studyHoursChartCaption = document.querySelector("#studyHoursChartCaption");
+const questionsChartTitle = document.querySelector("#questionsChartTitle");
+const questionsChartCaption = document.querySelector("#questionsChartCaption");
+const efficiencyChartCaption = document.querySelector("#efficiencyChartCaption");
 const questionContextEl = document.querySelector("#questionContext");
 const mockForm = document.querySelector("#mockForm");
 const mockDate = document.querySelector("#mockDate");
@@ -120,7 +131,6 @@ const reviewContextCountEl = document.querySelector("#reviewContextCount");
 let performanceChartInstance = null;
 let studyHoursChartInstance = null;
 let questionsChartInstance = null;
-let efficiencyChartInstance = null;
 let mockEvolutionChartInstance = null;
 
 
@@ -141,6 +151,7 @@ let syncMeta = SyncStorage.load();
 let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let exactTimeDate = '';
+let activeChartPeriod = '30';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
 
@@ -702,29 +713,103 @@ function renderSmartStudy() {
   `;
 }
 
-function getDailySeries(days = 14) {
-  const result = [];
+function parseLocalISODate(value) {
+  const iso = ReviewEngine.normalizeISODate(value);
+  return iso ? new Date(`${iso}T12:00:00`) : null;
+}
+
+function chartDaysBetween(start, end) {
+  return Math.max(1, Math.round((end - start) / 86400000) + 1);
+}
+
+function getChartPeriodRange() {
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(12,0,0,0);
+  let start = new Date(today);
+  let end = new Date(today);
+  let label = "Últimos 30 dias";
 
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const iso = toISODate(d);
-    const daySessions = sessions.filter((s) => ReviewEngine.normalizeISODate(s.date) === iso);
-    const questions = daySessions.reduce((sum,s) => sum + s.questions, 0);
-    const correct = daySessions.reduce((sum,s) => sum + s.correct, 0);
-    const seconds = daySessions.reduce((sum,s) => sum + Number(s.durationSeconds || 0), 0);
-
-    result.push({
-      iso,
-      label: new Intl.DateTimeFormat("pt-BR", {day:"2-digit", month:"2-digit"}).format(d),
-      questions,
-      accuracy: questions ? (correct/questions)*100 : null,
-      hours: seconds/3600
-    });
+  if (/^\d+$/.test(activeChartPeriod)) {
+    const days = Number(activeChartPeriod);
+    start.setDate(end.getDate() - days + 1);
+    label = `Últimos ${days} dias`;
+  } else if (activeChartPeriod === "year") {
+    start = new Date(today.getFullYear(), 0, 1, 12);
+    label = `Ano de ${today.getFullYear()}`;
+  } else if (activeChartPeriod === "365") {
+    start.setFullYear(end.getFullYear() - 1);
+    start.setDate(start.getDate() + 1);
+    label = "Últimos 12 meses";
+  } else if (activeChartPeriod === "all") {
+    const dates = sessions.map((item) => parseLocalISODate(item.date)).filter(Boolean).sort((a,b) => a-b);
+    start = dates[0] || new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29, 12);
+    label = "Todo o período";
+  } else if (activeChartPeriod === "custom") {
+    const customStart = parseLocalISODate(chartStartDate?.value);
+    const customEnd = parseLocalISODate(chartEndDate?.value);
+    if (customStart && customEnd && customStart <= customEnd) {
+      start = customStart;
+      end = customEnd;
+      label = `${formatDate(toISODate(start))} a ${formatDate(toISODate(end))}`;
+    }
   }
 
+  return { start, end, startISO: toISODate(start), endISO: toISODate(end), label };
+}
+
+function getChartGranularity(range) {
+  const days = chartDaysBetween(range.start, range.end);
+  if (activeChartPeriod === "90" || (activeChartPeriod === "custom" && days > 45 && days <= 180)) return "week";
+  if (["year", "365", "all"].includes(activeChartPeriod) || (activeChartPeriod === "custom" && days > 180)) return "month";
+  return "day";
+}
+
+function sessionsInChartRange(range) {
+  return sessions.filter((item) => {
+    const date = ReviewEngine.normalizeISODate(item.date);
+    return date >= range.startISO && date <= range.endISO;
+  });
+}
+
+function aggregateChartBucket(items, start, end, label) {
+  const startISO = toISODate(start);
+  const endISO = toISODate(end);
+  const bucketSessions = items.filter((item) => {
+    const date = ReviewEngine.normalizeISODate(item.date);
+    return date >= startISO && date <= endISO;
+  });
+  const questions = bucketSessions.reduce((sum,item) => sum + Number(item.questions || 0), 0);
+  const correct = bucketSessions.reduce((sum,item) => sum + Number(item.correct || 0), 0);
+  const seconds = bucketSessions.reduce((sum,item) => sum + Number(item.durationSeconds || 0), 0);
+  return { startISO, endISO, label, questions, correct, accuracy: questions ? (correct/questions)*100 : null, hours: seconds/3600 };
+}
+
+function getChartSeries(range, items, granularity) {
+  const result = [];
+  const cursor = new Date(range.start);
+  const shortDate = new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"2-digit" });
+  const shortMonth = new Intl.DateTimeFormat("pt-BR", { month:"short", year:"2-digit" });
+
+  while (cursor <= range.end) {
+    const bucketStart = new Date(cursor);
+    let bucketEnd = new Date(cursor);
+    let label;
+    if (granularity === "month") {
+      bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 12);
+      if (bucketEnd > range.end) bucketEnd = new Date(range.end);
+      label = shortMonth.format(cursor).replace(" de ", "/");
+      cursor.setMonth(cursor.getMonth() + 1, 1);
+    } else if (granularity === "week") {
+      bucketEnd.setDate(bucketEnd.getDate() + 6);
+      if (bucketEnd > range.end) bucketEnd = new Date(range.end);
+      label = shortDate.format(bucketStart);
+      cursor.setDate(cursor.getDate() + 7);
+    } else {
+      label = shortDate.format(bucketStart);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    result.push(aggregateChartBucket(items, bucketStart, bucketEnd, label));
+  }
   return result;
 }
 
@@ -745,8 +830,20 @@ function renderCharts() {
   const tickStyle = { color: "#71839a", padding: 8 };
   const tooltipStyle = { backgroundColor: "#111923", borderColor: "rgba(148,169,194,.22)", borderWidth: 1, titleColor: "#f4f7fb", bodyColor: "#b8c4d2", padding: 11, displayColors: false };
 
-  const series = getDailySeries(14);
+  const range = getChartPeriodRange();
+  const filteredSessions = sessionsInChartRange(range);
+  const granularity = getChartGranularity(range);
+  const series = getChartSeries(range, filteredSessions, granularity);
   const labels = series.map((d) => d.label);
+  const totalQuestionsInRange = filteredSessions.reduce((sum,item) => sum + Number(item.questions || 0), 0);
+  const totalCorrectInRange = filteredSessions.reduce((sum,item) => sum + Number(item.correct || 0), 0);
+  const averageAccuracy = totalQuestionsInRange ? (totalCorrectInRange / totalQuestionsInRange) * 100 : null;
+  const granularityLabel = granularity === "day" ? "dia" : granularity === "week" ? "semana" : "mês";
+
+  chartPeriodSummary.textContent = `${range.label} • agrupado por ${granularityLabel}`;
+  performanceChartCaption.textContent = averageAccuracy == null ? "Sem questões no período" : `Média de ${formatPercent(averageAccuracy)} em ${formatNumber(totalQuestionsInRange)} questões`;
+  questionsChartTitle.textContent = `Questões por ${granularityLabel}`;
+  questionsChartCaption.textContent = `${formatNumber(totalQuestionsInRange)} questões no período`;
 
   performanceChartInstance = destroyChart(performanceChartInstance);
   performanceChartInstance = new Chart(performanceChartEl, {
@@ -767,6 +864,14 @@ function renderCharts() {
         pointBorderColor: "#0c1118",
         pointBorderWidth: 2,
         fill: true
+      }, {
+        label: "Média do período",
+        data: series.map(() => averageAccuracy),
+        borderColor: "rgba(239,184,79,.72)",
+        borderWidth: 1,
+        borderDash: [5,5],
+        pointRadius: 0,
+        fill: false
       }]
     },
     options: {
@@ -777,13 +882,28 @@ function renderCharts() {
         x: { grid: { display: false }, ticks: tickStyle },
         y: { min: 0, max: 100, grid: gridStyle, ticks: { ...tickStyle, callback: (value) => `${value}%` } }
       },
-      plugins: { legend: { display: false }, tooltip: tooltipStyle }
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...tooltipStyle,
+          callbacks: {
+            label(context) {
+              if (context.datasetIndex === 1) return `Média: ${averageAccuracy == null ? "—" : formatPercent(averageAccuracy)}`;
+              const point = series[context.dataIndex];
+              return `${point.questions} questões • ${point.correct} acertos • ${point.accuracy == null ? "—" : formatPercent(point.accuracy)}`;
+            }
+          }
+        }
+      }
     }
   });
 
   const bySubject = new Map();
-  sessions.forEach((s) => bySubject.set(s.subject, (bySubject.get(s.subject) || 0) + Number(s.durationSeconds || 0)));
-  const subjectRows = [...bySubject.entries()].sort((a,b) => b[1]-a[1]).slice(0,8);
+  filteredSessions.forEach((s) => bySubject.set(s.subject, (bySubject.get(s.subject) || 0) + Number(s.durationSeconds || 0)));
+  const subjectRows = [...bySubject.entries()].filter(([,seconds]) => seconds > 0).sort((a,b) => b[1]-a[1]);
+  const totalSecondsInRange = subjectRows.reduce((sum,[,seconds]) => sum + seconds, 0);
+  studyHoursChartCaption.textContent = `${formatDuration(totalSecondsInRange)} em ${subjectRows.length} matéria${subjectRows.length === 1 ? "" : "s"}`;
+  studyHoursChartInner.style.height = `${Math.max(310, subjectRows.length * 48)}px`;
 
   studyHoursChartInstance = destroyChart(studyHoursChartInstance);
   studyHoursChartInstance = new Chart(studyHoursChartEl, {
@@ -805,7 +925,10 @@ function renderCharts() {
       responsive: true,
       maintainAspectRatio: false,
       scales: { x: { grid: gridStyle, ticks: tickStyle }, y: { grid: { display: false }, ticks: tickStyle } },
-      plugins: { legend: { display: false }, tooltip: tooltipStyle }
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...tooltipStyle, callbacks: { label: (context) => `${context.raw.toFixed(1).replace(".", ",")} horas` } }
+      }
     }
   });
 
@@ -828,12 +951,15 @@ function renderCharts() {
       responsive: true,
       maintainAspectRatio: false,
       scales: { x: { grid: { display: false }, ticks: tickStyle }, y: { beginAtZero: true, grid: gridStyle, ticks: tickStyle } },
-      plugins: { legend: { display: false }, tooltip: tooltipStyle }
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...tooltipStyle, callbacks: { label: (context) => `${formatNumber(context.raw)} questões` } }
+      }
     }
   });
 
   const efficiencyRows = [...bySubject.keys()].map((subject) => {
-    const items = sessions.filter((s) => s.subject === subject);
+    const items = filteredSessions.filter((s) => s.subject === subject);
     const q = items.reduce((sum,s) => sum+s.questions,0);
     const c = items.reduce((sum,s) => sum+s.correct,0);
     const seconds = items.reduce((sum,s) => sum+Number(s.durationSeconds||0),0);
@@ -841,44 +967,22 @@ function renderCharts() {
       subject,
       hours: seconds/3600,
       accuracy: q ? (c/q)*100 : 0,
-      questions: q
+      questions: q,
+      questionsPerHour: seconds > 0 ? q / (seconds/3600) : 0
     };
-  }).filter((r) => r.hours > 0).slice(0,12);
+  }).filter((r) => r.hours > 0).sort((a,b) => b.questionsPerHour - a.questionsPerHour);
 
-  efficiencyChartInstance = destroyChart(efficiencyChartInstance);
-  efficiencyChartInstance = new Chart(efficiencyChartEl, {
-    type: "scatter",
-    data: {
-      datasets: [{
-        label: "Matérias",
-        data: efficiencyRows.map((r) => ({x:+r.hours.toFixed(2), y:+r.accuracy.toFixed(1), subject:r.subject})),
-        backgroundColor: "rgba(239,184,79,.78)",
-        borderColor: "#efb84f",
-        pointRadius: 5,
-        pointHoverRadius: 7
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { grid: gridStyle, ticks: tickStyle, title: { display: true, text: "Horas estudadas", color: "#8292a6" } },
-        y: { min: 0, max: 100, grid: gridStyle, ticks: { ...tickStyle, callback: (value) => `${value}%` }, title: { display: true, text: "Acertos (%)", color: "#8292a6" } }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...tooltipStyle,
-          callbacks: {
-            label(context) {
-              const raw = context.raw;
-              return `${raw.subject}: ${raw.x}h • ${raw.y}%`;
-            }
-          }
-        }
-      }
-    }
-  });
+  const maxQuestionsPerHour = Math.max(...efficiencyRows.map((item) => item.questionsPerHour), 1);
+  efficiencyChartCaption.textContent = efficiencyRows.length ? `Ranking de ${efficiencyRows.length} matéria${efficiencyRows.length === 1 ? "" : "s"} por questões/hora` : "Sem tempo e questões no período";
+  efficiencyRankingEl.innerHTML = efficiencyRows.length ? efficiencyRows.map((item) => {
+    const tone = classify(item.accuracy).className;
+    const width = item.questionsPerHour > 0 ? Math.max(3, (item.questionsPerHour / maxQuestionsPerHour) * 100) : 0;
+    return `<div class="efficiency-row ${tone}">
+      <div class="efficiency-head"><strong>${escapeHtml(item.subject)}</strong><span>${item.questionsPerHour.toFixed(1).replace(".", ",")} q/h</span></div>
+      <div class="efficiency-track"><i style="width:${width}%"></i></div>
+      <small>${formatPercent(item.accuracy)} de acertos • ${formatDuration(item.hours * 3600)} • ${formatNumber(item.questions)} questões</small>
+    </div>`;
+  }).join("") : `<div class="empty-state compact"><strong>Sem dados de eficiência</strong><span>Registre tempo e questões no período selecionado.</span></div>`;
 }
 
 function getTopicKey(subject, topic, subtopic = "") {
@@ -2067,6 +2171,26 @@ timeFilterButtons.forEach((button) => {
     renderTimeDashboard();
   });
 });
+
+if (chartPeriodFilter) {
+  chartPeriodFilter.addEventListener("change", () => {
+    activeChartPeriod = chartPeriodFilter.value;
+    chartCustomPeriod.classList.toggle("hidden", activeChartPeriod !== "custom");
+    if (activeChartPeriod === "custom") {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 29);
+      if (!chartStartDate.value) chartStartDate.value = toISODate(start);
+      if (!chartEndDate.value) chartEndDate.value = toISODate(end);
+    }
+    renderCharts();
+  });
+  [chartStartDate, chartEndDate].forEach((input) => input.addEventListener("change", () => {
+    if (activeChartPeriod !== "custom" || !chartStartDate.value || !chartEndDate.value) return;
+    if (chartStartDate.value > chartEndDate.value) { showToast("A data inicial não pode ser posterior à data final.", "error"); return; }
+    renderCharts();
+  }));
+}
 
 reviewFilterButtons.forEach((button) => {
   button.addEventListener("click", () => {
