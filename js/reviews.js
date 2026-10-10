@@ -2,6 +2,7 @@ const ReviewEngine = {
   intervals: [3, 7, 15, 30, 45, 60],
   initialInterval: 3,
   minimumQuestionsToAdvance: 10,
+  minimumPercentageToAdvance: 90,
 
   getInitialInterval() {
     return this.initialInterval;
@@ -18,21 +19,23 @@ const ReviewEngine = {
     return current + 30;
   },
 
-  getNextInterval(percentage, previousInterval = null, _streak = 0, questionCount = 0, minimumQuestions = this.minimumQuestionsToAdvance) {
+  getNextInterval(percentage, previousInterval = null, _streak = 0, questionCount = 0, minimumQuestions = this.minimumQuestionsToAdvance, minimumPercentage = this.minimumPercentageToAdvance) {
     const current = Number(previousInterval) || this.initialInterval;
     const questions = Number(questionCount) || 0;
+    const requiredPercentage = Math.min(100, Math.max(70, Number(minimumPercentage) || this.minimumPercentageToAdvance));
     if (percentage < 60) return 3;
     if (percentage < 70) return Math.min(current, 7);
-    if (percentage < 90) return current;
+    if (percentage < requiredPercentage) return current;
     if (questions < minimumQuestions) return current;
     return this.getAdvanceInterval(current);
   },
 
-  explainInterval(percentage, previousInterval, questionCount, minimumQuestions, nextInterval) {
+  explainInterval(percentage, previousInterval, questionCount, minimumQuestions, nextInterval, minimumPercentage = this.minimumPercentageToAdvance) {
     const current = Number(previousInterval) || this.initialInterval;
+    const requiredPercentage = Math.min(100, Math.max(70, Number(minimumPercentage) || this.minimumPercentageToAdvance));
     if (percentage < 60) return `Retornou para 3 dias porque o desempenho foi ${Math.round(percentage)}%.`;
     if (percentage < 70) return `Ficou em até 7 dias porque o desempenho foi ${Math.round(percentage)}%.`;
-    if (percentage < 90) return `Manteve ${nextInterval} dias porque o desempenho ficou entre 70% e 89%.`;
+    if (percentage < requiredPercentage) return `Manteve ${nextInterval} dias porque o desempenho ficou abaixo da meta de ${requiredPercentage}%.`;
     if (Number(questionCount) < Number(minimumQuestions)) return `Manteve ${current} dias: foram ${questionCount} questões e a meta mínima é ${minimumQuestions}.`;
     return `Avançou para ${nextInterval} dias porque você acertou ${Math.round(percentage)}% em ${questionCount} questões.`;
   },

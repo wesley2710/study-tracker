@@ -135,6 +135,7 @@ const reviewNextIntervalPreview = document.querySelector("#reviewNextIntervalPre
 const reviewForecastEl = document.querySelector("#reviewForecast");
 const dailyReviewLimitInput = document.querySelector("#dailyReviewLimit");
 const minimumReviewQuestionsInput = document.querySelector("#minimumReviewQuestions");
+const minimumReviewAccuracyInput = document.querySelector("#minimumReviewAccuracy");
 const reviewOutcomeField = document.querySelector("#reviewOutcomeField");
 const postponeReviewModal = document.querySelector("#postponeReviewModal");
 const postponeReviewForm = document.querySelector("#postponeReviewForm");
@@ -233,7 +234,8 @@ function getReviewSettings() {
   const record = settings.find((item) => item.id === "review-settings") || {};
   return {
     dailyReviewLimit: ReviewPlanner.clamp(record.dailyReviewLimit, 1, 12, 4),
-    minimumQuestions: ReviewPlanner.clamp(record.minimumQuestions, 1, 200, 10)
+    minimumQuestions: ReviewPlanner.clamp(record.minimumQuestions, 1, 200, 10),
+    minimumAccuracy: ReviewPlanner.clamp(record.minimumAccuracy, 70, 100, 90)
   };
 }
 
@@ -244,6 +246,7 @@ function saveReviewSettings() {
     id: "review-settings",
     dailyReviewLimit: ReviewPlanner.clamp(dailyReviewLimitInput.value, 1, 12, 4),
     minimumQuestions: ReviewPlanner.clamp(minimumReviewQuestionsInput.value, 1, 200, 10),
+    minimumAccuracy: ReviewPlanner.clamp(minimumReviewAccuracyInput.value, 70, 100, 90),
     createdAt: previous?.createdAt || now,
     updatedAt: now
   };
@@ -1485,6 +1488,7 @@ function renderReviewForecast() {
   const reviewSettings = getReviewSettings();
   dailyReviewLimitInput.value = reviewSettings.dailyReviewLimit;
   minimumReviewQuestionsInput.value = reviewSettings.minimumQuestions;
+  minimumReviewAccuracyInput.value = reviewSettings.minimumAccuracy;
 }
 
 function renderReviewQueue() {
@@ -1633,10 +1637,10 @@ function updateReviewPreview() {
   const previousInterval = item?.interval || null;
   const [subject, topic, subtopic = ""] = key.split("|||");
   const currentStreak = getReviewStreak(subject, topic, subtopic);
-  const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
+  const projectedStreak = percentage >= reviewSettings.minimumAccuracy ? currentStreak + 1 : 0;
   const reviewSettings = getReviewSettings();
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions);
-  const reason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval);
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions, reviewSettings.minimumAccuracy);
+  const reason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval, reviewSettings.minimumAccuracy);
 
   reviewAccuracyPreview.textContent = formatPercent(percentage);
   reviewNextIntervalPreview.textContent = `Se concluir agora: próxima revisão em ${nextInterval} dia${nextInterval === 1 ? "" : "s"}. ${reason}`;
@@ -1660,11 +1664,11 @@ function saveReviewResult(event) {
   const item = schedule.find((entry) => entry.key === reviewKey);
   const percentage = (correct / questions) * 100;
   const currentStreak = getReviewStreak(subject, topic, subtopic);
-  const projectedStreak = percentage >= 90 ? currentStreak + 1 : 0;
+  const projectedStreak = percentage >= reviewSettings.minimumAccuracy ? currentStreak + 1 : 0;
   const previousInterval = item?.interval || null;
   const reviewSettings = getReviewSettings();
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions);
-  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval);
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions, reviewSettings.minimumAccuracy);
+  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval, reviewSettings.minimumAccuracy);
 
   const now = Date.now();
   const reviewId = createId();
@@ -2574,8 +2578,8 @@ function syncReviewRecordForSession(session) {
     ? Math.min(2, priorReviews.length) + 1
     : percentage >= 90 ? 1 : 0;
   const reviewSettings = getReviewSettings();
-  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions, reviewSettings.minimumQuestions);
-  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, session.questions, reviewSettings.minimumQuestions, nextInterval);
+  const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, streak, session.questions, reviewSettings.minimumQuestions, reviewSettings.minimumAccuracy);
+  const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, session.questions, reviewSettings.minimumQuestions, nextInterval, reviewSettings.minimumAccuracy);
   const now = Date.now();
   const record = {
     id: existing?.id || createId(), sessionId: session.id, reviewKey: session.reviewKey || getTopicKey(session.subject, session.topic, session.subtopic || ""),
@@ -2915,6 +2919,7 @@ function savePostponement(reviewKey, plannedDate) {
 
 if (dailyReviewLimitInput) dailyReviewLimitInput.addEventListener("change", saveReviewSettings);
 if (minimumReviewQuestionsInput) minimumReviewQuestionsInput.addEventListener("change", saveReviewSettings);
+if (minimumReviewAccuracyInput) minimumReviewAccuracyInput.addEventListener("change", saveReviewSettings);
 postponeReviewForm?.addEventListener("submit", (event) => { event.preventDefault(); savePostponement(postponeReviewForm.elements.reviewKey.value, postponeReviewForm.elements.plannedDate.value); });
 postponeReviewModal?.querySelectorAll("[data-postpone-days]").forEach((button) => button.addEventListener("click", () => savePostponement(postponeReviewForm.elements.reviewKey.value, ReviewPlanner.addDays(toISODate(), Number(button.dataset.postponeDays)))));
 closePostponeReviewButton?.addEventListener("click", closePostponeReview);
