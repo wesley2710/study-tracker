@@ -542,7 +542,7 @@ td { color: #dbe5ee; }
   .sidebar.open { left: 0; }
   .sidebar.open { box-shadow:24px 0 60px rgba(0,0,0,.42); }
   .sidebar-close-button { display:inline-grid; place-items:center; }
-  .sidebar-backdrop.visible { display:block; }
+  .sidebar-backdrop.visible { display:block; left:250px; }
   body.mobile-menu-open { overflow:hidden; }
   .menu-button { display: inline-grid; place-items: center; }
   .dashboard-grid { grid-template-columns: 1fr; }

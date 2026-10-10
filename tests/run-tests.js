@@ -285,6 +285,7 @@ assert.match(fs.readFileSync(path.join(root, "js/storage.js"), "utf8"), /const U
 assert.match(fs.readFileSync(path.join(root, "js/storage.js"), "utf8"), /activeSection/, "última seção aberta é lembrada");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.page-view\[hidden\].*display:none !important/s, "seções inativas ficam totalmente ocultas");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.sidebar-backdrop\.visible.*display:block/s, "fundo móvel permite fechar o menu tocando fora");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.sidebar-backdrop\.visible\s*\{[^}]*left:250px/s, "fundo móvel começa após o menu para receber o toque externo");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm \.form-footer \{ position:sticky/, "botão de salvar permanece acessível no celular");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm input,#studyForm select.*min-height:50px/, "campos do formulário são maiores no celular");
 
