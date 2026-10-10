@@ -160,6 +160,77 @@ const CatalogEngine = (() => {
     };
   }
 
+  function consolidateSubtopics(state, options) {
+    const timestamp = Number(options?.timestamp) || Date.now();
+    const topicId = options?.topicId;
+    const requestedSourceIds = new Set(options?.subtopicIds || []);
+    const topics = (state.topics || []).map((item) => ({ ...item }));
+    const subtopics = (state.subtopics || []).map((item) => ({ ...item }));
+    const topic = topics.find((item) => item.id === topicId && !item.archived);
+    const sources = subtopics.filter((item) => requestedSourceIds.has(item.id) && item.topicId === topicId && !item.archived);
+    if (!topic || !sources.length) return { ...state, changed: false };
+
+    const subject = (state.subjects || []).find((item) => item.id === topic.subjectId);
+    const sourceIds = new Set(sources.map((item) => item.id));
+    const sourceNames = new Set(sources.map((item) => comparableName(item.name)));
+    const subjectName = subject?.name || "";
+    const parentReviewKey = `${subjectName}|||${topic.name}|||`;
+
+    const belongsToSource = (record) => sourceIds.has(record.subtopicId) || (
+      (record.topicId === topic.id || (
+        comparableName(record.topic) === comparableName(topic.name) &&
+        (!subjectName || comparableName(record.subject) === comparableName(subjectName))
+      )) && sourceNames.has(comparableName(record.subtopic))
+    );
+
+    const moveRecord = (record) => {
+      if (!belongsToSource(record)) return record;
+      return {
+        ...record,
+        subjectId: topic.subjectId,
+        topicId: topic.id,
+        subtopicId: null,
+        subject: subjectName || record.subject,
+        topic: topic.name,
+        subtopic: "",
+        reviewKey: record.reviewKey ? parentReviewKey : record.reviewKey,
+        updatedAt: timestamp
+      };
+    };
+
+    const sessions = (state.sessions || []).map(moveRecord);
+    const reviews = (state.reviews || []).map((record) => {
+      const moved = moveRecord(record);
+      return moved === record ? record : { ...moved, reviewKey: parentReviewKey };
+    });
+    const sourceReviewKeys = new Set(sources.map((item) => `${subjectName}|||${topic.name}|||${item.name}`));
+    const reviewPlans = (state.reviewPlans || []).map((plan) => sourceReviewKeys.has(plan.reviewKey)
+      ? { ...plan, reviewKey: parentReviewKey, updatedAt: timestamp }
+      : plan);
+
+    sources.forEach((source) => { source.archived = true; source.updatedAt = timestamp; });
+    topic.updatedAt = timestamp;
+
+    return {
+      ...state,
+      sessions,
+      reviews,
+      reviewPlans,
+      topics,
+      subtopics,
+      changed: true,
+      summary: {
+        topicId: topic.id,
+        topicName: topic.name,
+        consolidatedSubtopicIds: [...sourceIds],
+        consolidatedSubtopicNames: sources.map((item) => item.name),
+        movedSessions: sessions.filter((item, index) => item !== (state.sessions || [])[index]).length,
+        movedReviews: reviews.filter((item, index) => item !== (state.reviews || [])[index]).length,
+        movedReviewPlans: reviewPlans.filter((item, index) => item !== (state.reviewPlans || [])[index]).length
+      }
+    };
+  }
+
   function findLatestMerge(state, subjectId = null) {
     const topics = state.topics || [];
     const candidates = [];
@@ -258,5 +329,5 @@ const CatalogEngine = (() => {
     };
   }
 
-  return { normalizeName, migrate, mergeTopics, findLatestMerge, redirectLatestMerge };
+  return { normalizeName, migrate, mergeTopics, consolidateSubtopics, findLatestMerge, redirectLatestMerge };
 })();

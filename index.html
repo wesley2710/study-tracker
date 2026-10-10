@@ -911,6 +911,28 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="catalogConsolidateModal">
+    <div class="modal-card catalog-merge-card" role="dialog" aria-modal="true" aria-labelledby="catalogConsolidateTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Organização</span><h3 id="catalogConsolidateTitle">Consolidar subtemas</h3></div>
+        <button class="icon-button" id="closeCatalogConsolidateModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <form id="catalogConsolidateForm">
+        <p class="auth-note">Os subtemas selecionados passarão a formar uma única agenda de revisão com o nome do tema principal.</p>
+        <fieldset class="merge-source-fieldset">
+          <legend>Subtemas que serão incorporados ao tema</legend>
+          <div id="catalogConsolidateSources" class="merge-source-list"></div>
+        </fieldset>
+        <div id="catalogConsolidateSummary" class="merge-summary">Selecione ao menos um subtema para consolidar.</div>
+        <p class="auth-note">Sessões, horas, questões, acertos e revisões serão preservados. Os subtemas incorporados ficarão arquivados e a ação poderá ser desfeita.</p>
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelCatalogConsolidate" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Confirmar consolidação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="archivedItemsModal">
     <div class="modal-card archived-items-card" role="dialog" aria-modal="true" aria-labelledby="archivedItemsTitle">
       <div class="modal-header">
@@ -954,8 +976,8 @@
   <script src="js/sync.js?v=2.0.0"></script>
   <script src="js/reviews.js?v=2.0.0"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
-  <script src="js/catalog.js?v=1.5.1"></script>
+  <script src="js/catalog.js?v=2.0.2"></script>
   <script src="js/safety.js?v=2.0.0"></script>
-  <script src="js/app.js?v=2.0.1"></script>
+  <script src="js/app.js?v=2.0.2"></script>
 </body>
 </html>

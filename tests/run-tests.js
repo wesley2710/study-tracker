@@ -184,6 +184,37 @@ assert.equal(correctedMerge.reviews[0].topic, "Segurados reunidos", "revisão in
 assert.equal(correctedMerge.topics.find((item) => item.id === "target").name, "Segurado obrigatório", "histórico original do destino não é renomeado");
 assert.equal(catalogEngine.findLatestMerge(correctedMerge, "subject"), null, "junção corrigida não volta a ser oferecida");
 
+const consolidatedSubtopics = catalogEngine.consolidateSubtopics({
+  subjects: [{ id: "subject", name: "Previdenciário" }],
+  topics: [{ id: "benefits", subjectId: "subject", name: "Lei nº 8.213/1991 (Plano de Benefícios)", archived: false }],
+  subtopics: [
+    { id: "waiting", topicId: "benefits", name: "Carência", archived: false },
+    { id: "maternity", topicId: "benefits", name: "Salário Maternidade", archived: false },
+    { id: "pension", topicId: "benefits", name: "Pensão por morte", archived: false }
+  ],
+  sessions: [
+    { id: "s-waiting", subjectId: "subject", topicId: "benefits", subtopicId: "waiting", subject: "Previdenciário", topic: "Lei nº 8.213/1991 (Plano de Benefícios)", subtopic: "Carência", questions: 20, correct: 18, durationSeconds: 3600 },
+    { id: "s-maternity", subjectId: "subject", topicId: "benefits", subtopicId: "maternity", subject: "Previdenciário", topic: "Lei nº 8.213/1991 (Plano de Benefícios)", subtopic: "Salário Maternidade", questions: 10, correct: 8, durationSeconds: 1800 },
+    { id: "s-pension", subjectId: "subject", topicId: "benefits", subtopicId: "pension", subject: "Previdenciário", topic: "Lei nº 8.213/1991 (Plano de Benefícios)", subtopic: "Pensão por morte", questions: 5, correct: 5, durationSeconds: 900 }
+  ],
+  reviews: [
+    { id: "r-waiting", subjectId: "subject", topicId: "benefits", subtopicId: "waiting", subject: "Previdenciário", topic: "Lei nº 8.213/1991 (Plano de Benefícios)", subtopic: "Carência", reviewKey: "Previdenciário|||Lei nº 8.213/1991 (Plano de Benefícios)|||Carência" },
+    { id: "r-maternity", subjectId: "subject", topicId: "benefits", subtopicId: "maternity", subject: "Previdenciário", topic: "Lei nº 8.213/1991 (Plano de Benefícios)", subtopic: "Salário Maternidade", reviewKey: "Previdenciário|||Lei nº 8.213/1991 (Plano de Benefícios)|||Salário Maternidade" }
+  ],
+  reviewPlans: [{ id: "plan-waiting", reviewKey: "Previdenciário|||Lei nº 8.213/1991 (Plano de Benefícios)|||Carência", plannedDate: "2026-10-15" }]
+}, { topicId: "benefits", subtopicIds: ["waiting", "maternity"], timestamp: 800 });
+assert.equal(consolidatedSubtopics.changed, true, "subtemas selecionados podem ser consolidados no tema principal");
+assert.equal(consolidatedSubtopics.sessions[0].subtopic, "", "sessão consolidada passa a pertencer diretamente ao tema");
+assert.equal(consolidatedSubtopics.sessions[0].subtopicId, null, "vínculo do subtema consolidado é removido");
+assert.equal(consolidatedSubtopics.sessions[0].durationSeconds, 3600, "consolidação preserva as horas estudadas");
+assert.equal(consolidatedSubtopics.sessions[0].questions, 20, "consolidação preserva as questões");
+assert.equal(consolidatedSubtopics.reviews[0].reviewKey, "Previdenciário|||Lei nº 8.213/1991 (Plano de Benefícios)|||", "revisão passa a usar a agenda única do tema");
+assert.equal(consolidatedSubtopics.reviewPlans[0].reviewKey, "Previdenciário|||Lei nº 8.213/1991 (Plano de Benefícios)|||", "adiamento acompanha a agenda consolidada");
+assert.equal(consolidatedSubtopics.subtopics.find((item) => item.id === "waiting").archived, true, "subtema incorporado é arquivado");
+assert.equal(consolidatedSubtopics.subtopics.find((item) => item.id === "maternity").archived, true, "todos os subtemas escolhidos são arquivados");
+assert.equal(consolidatedSubtopics.subtopics.find((item) => item.id === "pension").archived, false, "subtema não selecionado continua independente");
+assert.equal(consolidatedSubtopics.sessions[2].subtopic, "Pensão por morte", "dados não selecionados permanecem inalterados");
+
 const appText = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 const backendText = fs.readFileSync(path.join(root, "backend/Code.gs"), "utf8");
 const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");
@@ -208,7 +239,9 @@ assert.match(htmlText, /id="catalogSearch"/, "cadastro possui pesquisa por maté
 assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lote");
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
-assert.match(htmlText, /js\/app\.js\?v=2\.0\.1/, "cache do aplicativo foi atualizado após a correção da agenda");
+assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
+assert.match(htmlText, /js\/app\.js\?v=2\.0\.2/, "cache do aplicativo foi atualizado após a consolidação de subtemas");
+assert.match(htmlText, /id="catalogConsolidateModal"/, "catálogo possui confirmação detalhada para consolidar subtemas");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
@@ -225,6 +258,7 @@ assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /subtopicTo
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /pendingChanges/, "sincronização informa alterações pendentes");
 assert.match(appText, /captureUndo\(`Arquivamento de/, "arquivamento cria cópia automática antes da alteração");
 assert.match(appText, /captureUndo\("Mesclagem de temas"\)/, "mesclagem cria cópia automática antes da alteração");
+assert.match(appText, /captureUndo\(`Consolidação de subtemas em/, "consolidação de subtemas cria cópia automática antes da alteração");
 assert.match(appText, /StudySync\.run\(true\)/, "alterações locais são marcadas como pendentes até sincronizar");
 assert.match(appText, /Selecione um tema/, "vocabulário Matéria → Tema → Subtema foi padronizado");
 assert.match(appText, /function renderTodayDashboard\(/, "resumo Hoje possui renderização própria");
