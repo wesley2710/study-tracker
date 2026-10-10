@@ -48,7 +48,7 @@ button { cursor: pointer; }
   background: rgba(7,11,16,.97);
   display: flex;
   flex-direction: column;
-  z-index: 30;
+  z-index: 50;
 }
 
 .brand {
@@ -74,6 +74,8 @@ button { cursor: pointer; }
 .brand strong, .brand span { display: block; }
 .brand strong { font-size: 14px; }
 .brand span { margin-top: 2px; color: var(--muted); font-size: 12px; }
+.sidebar-close-button { display:none; margin-left:auto; flex:0 0 auto; }
+.sidebar-backdrop { display:none; position:fixed; inset:0; z-index:40; border:0; padding:0; background:rgba(0,0,0,.58); backdrop-filter:blur(2px); }
 
 .nav { display: grid; gap: 7px; }
 
@@ -106,6 +108,7 @@ button { cursor: pointer; }
 .sidebar-footer span { color: var(--muted); font-size: 11px; }
 
 .main { min-width: 0; }
+.page-view[hidden] { display:none !important; }
 
 .topbar {
   min-height: 86px;
@@ -537,6 +540,10 @@ td { color: #dbe5ee; }
     transition: .22s ease;
   }
   .sidebar.open { left: 0; }
+  .sidebar.open { box-shadow:24px 0 60px rgba(0,0,0,.42); }
+  .sidebar-close-button { display:inline-grid; place-items:center; }
+  .sidebar-backdrop.visible { display:block; }
+  body.mobile-menu-open { overflow:hidden; }
   .menu-button { display: inline-grid; place-items: center; }
   .dashboard-grid { grid-template-columns: 1fr; }
   .topbar { padding: 15px 18px; }

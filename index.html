@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.0.0" />
+  <link rel="stylesheet" href="css/style.css?v=2.1.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -19,41 +19,47 @@
           <strong>Study Tracker</strong>
           <span>Concurso</span>
         </div>
+        <button class="icon-button sidebar-close-button" id="sidebarCloseButton" type="button" aria-label="Fechar menu">×</button>
       </div>
 
-      <nav class="nav">
-        <button class="nav-item active" data-section="dashboard">
+      <nav class="nav" aria-label="Seções do Study Tracker">
+        <button class="nav-item active" data-section="dashboard" data-title="Hoje" aria-current="page">
           <span>⌂</span> Hoje
         </button>
-        <button class="nav-item" data-section="registrar">
+        <button class="nav-item" data-section="registrar" data-title="Registrar estudo">
           <span>＋</span> Registrar estudo
         </button>
-        <button class="nav-item" data-section="historico">
-          <span>▤</span> Histórico
-        </button>
-        <button class="nav-item" data-section="revisoes">
+        <button class="nav-item" data-section="revisoes" data-title="Revisões">
           <span>↻</span> Revisões
         </button>
-        <button class="nav-item" data-section="desempenho">
+        <button class="nav-item" data-section="desempenho" data-title="Desempenho">
           <span>◔</span> Desempenho
         </button>
-        <button class="nav-item" data-section="simulados">
+        <button class="nav-item" data-section="historico" data-title="Histórico">
+          <span>▤</span> Histórico
+        </button>
+        <button class="nav-item" data-section="simulados" data-title="Simulados">
           <span>▦</span> Simulados
         </button>
-        <button class="nav-item" data-section="catalogo">
+        <button class="nav-item" data-section="catalogo" data-title="Matérias, temas e subtemas">
           <span>◫</span> Matérias, temas e subtemas
+        </button>
+        <button class="nav-item" data-section="seguranca-dados" data-title="Segurança dos dados">
+          <span>◇</span> Segurança dos dados
         </button>
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.0</p>
+        <p>Versão 2.1</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
 
+    <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Fechar menu" tabindex="-1"></button>
+
     <main class="main">
       <header class="topbar">
-        <button class="icon-button menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
         <div>
           <p class="eyebrow">Painel de estudos</p>
           <h1 id="pageTitle">Hoje</h1>
@@ -68,7 +74,7 @@
       </header>
 
       <section class="content">
-        <div class="hero" id="dashboard">
+        <div class="hero page-view" id="dashboard" data-page="dashboard">
           <div>
             <span class="pill">Seu dia</span>
             <h2>O que precisa da sua atenção hoje.</h2>
@@ -84,7 +90,7 @@
           </div>
         </div>
 
-        <section class="today-dashboard" aria-label="Resumo de hoje">
+        <section class="today-dashboard page-view" data-page="dashboard" aria-label="Resumo de hoje">
           <div class="today-metrics">
             <article class="today-metric">
               <span>Tempo estudado hoje</span>
@@ -118,7 +124,7 @@
           </div>
         </section>
 
-        <section class="stats-grid">
+        <section class="stats-grid page-view" data-page="dashboard">
           <article class="stat-card">
             <div class="stat-head">
               <span>Total de questões</span>
@@ -156,7 +162,7 @@
           </article>
         </section>
 
-        <section class="dashboard-grid">
+        <section class="dashboard-grid page-view" data-page="dashboard">
           <article class="panel performance-panel">
             <div class="panel-header">
               <div>
@@ -174,7 +180,7 @@
             </div>
           </article>
 
-          <article class="panel review-panel" id="revisoes">
+          <article class="panel review-panel" id="fila-revisoes">
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Hoje</span>
@@ -201,7 +207,7 @@
           </article>
         </section>
 
-        <section class="panel review-planning-panel" id="planejamento-revisoes">
+        <section class="panel review-planning-panel page-view" id="planejamento-revisoes" data-page="dashboard">
           <div class="panel-header review-planning-header">
             <div>
               <span class="panel-kicker">Carga de revisão</span>
@@ -216,7 +222,7 @@
           <div class="review-forecast" id="reviewForecast"></div>
         </section>
 
-        <section class="workspace-grid">
+        <section class="workspace-grid page-view" data-page="registrar" hidden>
           <article class="panel form-panel" id="registrar">
             <div class="panel-header">
               <div>
@@ -318,7 +324,7 @@
           </article>
         </section>
 
-        <section class="time-dashboard panel" id="banco-horas">
+        <section class="time-dashboard panel page-view" id="banco-horas" data-page="registrar" hidden>
           <div class="panel-header">
             <div>
               <span class="panel-kicker">Banco de horas</span>
@@ -340,7 +346,7 @@
           <div class="subject-time-list" id="subjectTimeList"></div>
         </section>
 
-        <section class="panel question-context-panel" id="contexto-questoes">
+        <section class="panel question-context-panel page-view" id="contexto-questoes" data-page="registrar" hidden>
           <div class="panel-header"><div><span class="panel-kicker">Qualidade da evidência</span><h3>Desempenho por contexto das questões</h3></div></div>
           <div class="mock-summary-grid">
             <div class="time-summary-card"><span>Durante o estudo</span><strong id="studyContextAccuracy">—</strong><small id="studyContextCount">0 questões</small></div>
@@ -350,7 +356,7 @@
           <p class="context-note">Todas as questões contam no volume total. Baterias independentes e revisões oferecem evidência mais forte para o diagnóstico de domínio.</p>
         </section>
 
-        <section class="smart-study-grid" id="recomendacao">
+        <section class="smart-study-grid page-view" id="recomendacao" data-page="registrar" hidden>
           <article class="panel smart-study-panel">
             <div class="panel-header">
               <div>
@@ -383,7 +389,7 @@
           </article>
         </section>
 
-        <section class="chart-section" id="graficos">
+        <section class="chart-section page-view" id="graficos" data-page="desempenho" hidden>
           <div class="chart-controls">
             <div>
               <span class="panel-kicker">Análise histórica</span>
@@ -454,7 +460,7 @@
           </div>
         </section>
 
-        <section class="reviews-workspace">
+        <section class="reviews-workspace page-view" id="revisoes" data-page="revisoes" hidden>
           <article class="panel">
             <div class="panel-header collapsible-header">
               <div>
@@ -536,7 +542,7 @@
           </article>
         </section>
 
-        <section class="analytics-grid" id="desempenho">
+        <section class="analytics-grid page-view" id="desempenho" data-page="desempenho" hidden>
           <article class="panel analytics-panel">
             <div class="panel-header">
               <div>
@@ -581,7 +587,7 @@
           </article>
         </section>
 
-        <section class="panel topic-analysis-panel">
+        <section class="panel topic-analysis-panel page-view" data-page="desempenho" hidden>
           <div class="panel-header collapsible-header">
             <div>
               <span class="panel-kicker">Análise por assunto</span>
@@ -626,7 +632,7 @@
           </div>
         </section>
 
-        <section class="simulations-section" id="simulados">
+        <section class="simulations-section page-view" id="simulados" data-page="simulados" hidden>
           <article class="panel">
             <div class="panel-header">
               <div>
@@ -670,7 +676,7 @@
           </div>
         </section>
 
-        <section class="panel catalog-panel" id="catalogo">
+        <section class="panel catalog-panel page-view" id="catalogo" data-page="catalogo" hidden>
           <div class="panel-header">
             <div>
               <span class="panel-kicker">Organização</span>
@@ -700,7 +706,7 @@
           </div>
         </section>
 
-        <section class="panel safety-panel" id="seguranca-dados">
+        <section class="panel safety-panel page-view" id="seguranca-dados" data-page="seguranca-dados" hidden>
           <div class="panel-header">
             <div>
               <span class="panel-kicker">Segurança dos dados</span>
@@ -730,7 +736,7 @@
           <div id="auditLogList" class="audit-log-list"><div class="empty-state compact"><strong>Nenhuma alteração estrutural registrada</strong><span>As próximas ações aparecerão aqui.</span></div></div>
         </section>
 
-        <section class="panel history-panel" id="historico">
+        <section class="panel history-panel page-view" id="historico" data-page="historico" hidden>
           <div class="panel-header collapsible-header">
             <div>
               <span class="panel-kicker">Registros recentes</span>
@@ -971,13 +977,13 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.0.0"></script>
+  <script src="js/storage.js?v=2.1.0"></script>
   <script src="js/api.js?v=1.1.2"></script>
   <script src="js/sync.js?v=2.0.0"></script>
   <script src="js/reviews.js?v=2.0.0"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.0.0"></script>
-  <script src="js/app.js?v=2.0.2"></script>
+  <script src="js/safety.js?v=2.1.0"></script>
+  <script src="js/app.js?v=2.1.0"></script>
 </body>
 </html>

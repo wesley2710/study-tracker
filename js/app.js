@@ -1,6 +1,9 @@
 const sidebar = document.querySelector("#sidebar");
 const menuButton = document.querySelector("#menuButton");
+const sidebarCloseButton = document.querySelector("#sidebarCloseButton");
+const sidebarBackdrop = document.querySelector("#sidebarBackdrop");
 const navItems = document.querySelectorAll(".nav-item");
+const pageViews = document.querySelectorAll("[data-page]");
 const pageTitle = document.querySelector("#pageTitle");
 const todayDate = document.querySelector("#todayDate");
 const studyForm = document.querySelector("#studyForm");
@@ -215,6 +218,7 @@ let pendingCatalogConsolidateTopicId = null;
 let syncMeta = SyncStorage.load();
 let safetyState = SafetyStorage.load();
 let uiPreferences = UiStorage.load();
+let activeSection = uiPreferences.activeSection || "dashboard";
 let catalogTopicSelection = new Set();
 let archivedSelection = new Set();
 let suggestedStudyItem = null;
@@ -1050,7 +1054,7 @@ function openStudyRegistration(item = null, startClock = false) {
     const subtopicId = item.subtopicId || catalog.subtopics.find((entry) => entry.topicId === topicId && entry.name === (item.subtopic || ""))?.id || "";
     renderDatalists(subjectId, topicId, subtopicId);
   }
-  document.getElementById("registrar").scrollIntoView({ behavior:"smooth", block:"start" });
+  activateSection("registrar");
   if (startClock && !activeTimer?.running) activeTimer ? resumeTimer() : startTimer();
   window.setTimeout(() => (item ? studyForm.elements.questions : studyForm.elements.subject).focus(), 350);
 }
@@ -2060,6 +2064,7 @@ function editMock(id) {
   (scores.length ? scores : [{subject:"",score:"",maxScore:""}]).forEach((item) => addMockSubjectRow(item.subject, item.score, item.maxScore, item.subjectId || ""));
   saveMockButton.textContent = "Atualizar simulado";
   cancelMockEditButton.classList.remove("hidden");
+  activateSection("simulados");
   document.getElementById("simulados").scrollIntoView({behavior:"smooth", block:"start"});
 }
 
@@ -2076,6 +2081,35 @@ function deleteMock(id) {
 
 function normalizeCatalogName(value) { return CatalogEngine.normalizeName(value); }
 function saveUiPreferences() { UiStorage.save(uiPreferences); }
+function setSidebarOpen(open) {
+  const shouldOpen = Boolean(open) && window.innerWidth <= 860;
+  sidebar.classList.toggle("open", shouldOpen);
+  sidebarBackdrop?.classList.toggle("visible", shouldOpen);
+  document.body.classList.toggle("mobile-menu-open", shouldOpen);
+  menuButton.setAttribute("aria-expanded", String(shouldOpen));
+  menuButton.setAttribute("aria-label", shouldOpen ? "Fechar menu" : "Abrir menu");
+}
+
+function activateSection(requestedSection, options = {}) {
+  const targetNav = [...navItems].find((item) => item.dataset.section === requestedSection) || [...navItems].find((item) => item.dataset.section === "dashboard");
+  if (!targetNav) return;
+  const section = targetNav.dataset.section;
+  activeSection = section;
+  pageViews.forEach((view) => { view.hidden = view.dataset.page !== section; });
+  navItems.forEach((item) => {
+    const selected = item === targetNav;
+    item.classList.toggle("active", selected);
+    if (selected) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  });
+  pageTitle.textContent = targetNav.dataset.title || targetNav.textContent.trim();
+  uiPreferences.activeSection = section;
+  if (options.persist !== false) saveUiPreferences();
+  setSidebarOpen(false);
+  if (options.scroll !== false) window.scrollTo({ top: 0, behavior: "auto" });
+  if (section === "desempenho") window.requestAnimationFrame(renderCharts);
+  if (section === "simulados") window.requestAnimationFrame(renderMockChart);
+}
 function renderCatalogBulkActions() {
   const activeIds = new Set(catalog.topics.filter((item) => !item.archived).map((item) => item.id));
   catalogTopicSelection = new Set([...catalogTopicSelection].filter((id) => activeIds.has(id)));
@@ -2445,7 +2479,7 @@ function startScheduledReview(reviewKey) {
   saveStudyButton.textContent = "Concluir revisão";
   formHint.textContent = `${ReviewEngine.getStatusLabel(item.status)} • prevista para ${formatDate(item.nextDate)}. Informe questões, acertos e tempo; ao salvar, a próxima revisão será calculada automaticamente.`;
   updateAccuracyPreview();
-  document.getElementById("registrar").scrollIntoView({ behavior: "smooth", block: "start" });
+  activateSection("registrar");
   window.setTimeout(() => studyForm.elements.questions.focus(), 250);
 }
 
@@ -2473,7 +2507,7 @@ function startEdit(id) {
   cancelEditButton.classList.remove("hidden");
   formHint.textContent = "Editando registro existente.";
   updateAccuracyPreview();
-  document.getElementById("registrar").scrollIntoView({ behavior: "smooth", block: "start" });
+  activateSection("registrar");
 }
 
 function deleteSession(id) {
@@ -2615,22 +2649,14 @@ historyBody.addEventListener("click", (event) => {
   if (action === "delete") deleteSession(id);
 });
 
-menuButton.addEventListener("click", () => {
-  sidebar.classList.toggle("open");
-});
+menuButton.addEventListener("click", () => setSidebarOpen(!sidebar.classList.contains("open")));
+sidebarCloseButton?.addEventListener("click", () => setSidebarOpen(false));
+sidebarBackdrop?.addEventListener("click", () => setSidebarOpen(false));
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) setSidebarOpen(false); });
+window.addEventListener("resize", () => { if (window.innerWidth > 860) setSidebarOpen(false); });
 
 navItems.forEach((item) => {
-  item.addEventListener("click", () => {
-    navItems.forEach((nav) => nav.classList.remove("active"));
-    item.classList.add("active");
-    pageTitle.textContent = item.textContent.trim();
-
-    const target = item.dataset.section;
-    const targetNode = document.getElementById(target);
-
-    if (targetNode) targetNode.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (window.innerWidth <= 860) sidebar.classList.remove("open");
-  });
+  item.addEventListener("click", () => activateSection(item.dataset.section));
 });
 
 newStudyButton.addEventListener("click", () => {
@@ -2812,6 +2838,7 @@ document.querySelectorAll("[data-collapse-target]").forEach((button) => {
 });
 
 if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => {
+  activateSection("desempenho");
   setCollapsibleExpanded("topicAnalysisContent", true);
   document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
@@ -2978,6 +3005,7 @@ if (mockDate) resetMockForm();
 syncQuestionContextMode();
 renderAll();
 restoreCollapsibleState();
+activateSection(activeSection, { persist: false, scroll: false });
 updateAccuracyPreview();
 renderTimer();
 if (activeTimer?.running) startTimerTick();
