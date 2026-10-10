@@ -208,10 +208,12 @@ assert.match(htmlText, /id="catalogSearch"/, "cadastro possui pesquisa por maté
 assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lote");
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
-assert.match(htmlText, /js\/app\.js\?v=2\.0\.0/, "cache do aplicativo foi atualizado para a versão de usabilidade");
+assert.match(htmlText, /js\/app\.js\?v=2\.0\.1/, "cache do aplicativo foi atualizado após a correção da agenda");
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
+assert.match(appText, /escapeHtml\(item\.subtopic \|\| item\.topic\)/, "agenda mostra o subtema quando ele existe e o tema somente como alternativa");
+assert.match(appText, /escapeHtml\(review\.subtopic \|\| review\.topic\)/, "histórico mostra a unidade exata que foi revisada");
 assert.match(appText, /catalog\.subtopics.*topicId/, "catálogo mantém terceiro nível por ID do tema");
 assert.match(appText, /if\(type==="subject"\).*catalog\.topics.*catalog\.subtopics/s, "arquivamento de matéria arquiva descendentes");
 assert.match(appText, /if\(type==="topic"\).*catalog\.subtopics/s, "arquivamento de tema arquiva subtemas");

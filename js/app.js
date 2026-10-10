@@ -1543,7 +1543,7 @@ function renderReviewSchedule() {
   reviewScheduleBody.innerHTML = schedule.map((item) => `
     <tr>
       <td>${escapeHtml(item.subject)}</td>
-      <td>${escapeHtml(item.topic)}</td>
+      <td>${escapeHtml(item.subtopic || item.topic)}</td>
       <td><strong>${formatPercent(item.lastPercentage)}</strong></td>
       <td>${item.interval} dia${item.interval === 1 ? "" : "s"}${item.intervalReason ? `<small class="interval-reason">${escapeHtml(item.intervalReason)}</small>` : ""}</td>
       <td>${formatDate(item.nextDate)}${item.redistributed ? `<small class="interval-reason review-plan-note">Original: ${formatDate(item.originalDueDate)}</small>` : ""}</td>
@@ -1575,7 +1575,7 @@ function renderReviewHistory() {
       <tr>
         <td>${formatDate(review.date)}</td>
         <td>${escapeHtml(review.subject)}</td>
-        <td>${escapeHtml(review.topic)}</td>
+        <td>${escapeHtml(review.subtopic || review.topic)}</td>
         <td>${formatNumber(review.questions)}</td>
         <td>${formatNumber(review.correct)}</td>
         <td><strong>${formatPercent(percentage)}</strong></td>
