@@ -1637,8 +1637,8 @@ function updateReviewPreview() {
   const previousInterval = item?.interval || null;
   const [subject, topic, subtopic = ""] = key.split("|||");
   const currentStreak = getReviewStreak(subject, topic, subtopic);
-  const projectedStreak = percentage >= reviewSettings.minimumAccuracy ? currentStreak + 1 : 0;
   const reviewSettings = getReviewSettings();
+  const projectedStreak = percentage >= reviewSettings.minimumAccuracy ? currentStreak + 1 : 0;
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions, reviewSettings.minimumAccuracy);
   const reason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval, reviewSettings.minimumAccuracy);
 
@@ -1664,9 +1664,9 @@ function saveReviewResult(event) {
   const item = schedule.find((entry) => entry.key === reviewKey);
   const percentage = (correct / questions) * 100;
   const currentStreak = getReviewStreak(subject, topic, subtopic);
+  const reviewSettings = getReviewSettings();
   const projectedStreak = percentage >= reviewSettings.minimumAccuracy ? currentStreak + 1 : 0;
   const previousInterval = item?.interval || null;
-  const reviewSettings = getReviewSettings();
   const nextInterval = ReviewEngine.getNextInterval(percentage, previousInterval, projectedStreak, questions, reviewSettings.minimumQuestions, reviewSettings.minimumAccuracy);
   const intervalReason = ReviewEngine.explainInterval(percentage, previousInterval, questions, reviewSettings.minimumQuestions, nextInterval, reviewSettings.minimumAccuracy);
 

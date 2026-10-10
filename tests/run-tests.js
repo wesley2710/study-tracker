@@ -244,8 +244,9 @@ assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restaura
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
 assert.match(htmlText, /js\/storage\.js\?v=2\.1\.0/, "preferências de navegação usam o armazenamento atualizado");
-assert.match(htmlText, /js\/app\.js\?v=2\.1\.1/, "cache do aplicativo inclui a meta percentual configurável");
+assert.match(htmlText, /js\/app\.js\?v=2\.1\.2/, "cache do aplicativo inclui a meta percentual configurável");
 assert.match(htmlText, /id="minimumReviewQuestions"[\s\S]*id="minimumReviewAccuracy"/, "percentual para avançar aparece ao lado da quantidade de questões");
+assert.equal((appText.match(/const reviewSettings = getReviewSettings\(\);\s*const projectedStreak = percentage >= reviewSettings\.minimumAccuracy/g) || []).length, 2, "formulário lê a meta configurada antes de calcular a próxima revisão");
 assert.match(htmlText, /id="catalogConsolidateModal"/, "catálogo possui confirmação detalhada para consolidar subtemas");
 assert.match(htmlText, /data-section="dashboard"[\s\S]*data-section="registrar"[\s\S]*data-section="revisoes"[\s\S]*data-section="desempenho"[\s\S]*data-section="historico"[\s\S]*data-section="simulados"[\s\S]*data-section="catalogo"[\s\S]*data-section="seguranca-dados"/, "menu lateral segue a ordem definida");
 assert.equal((htmlText.match(/class="nav-item/g) || []).length, 8, "menu possui somente as oito seções definidas");
