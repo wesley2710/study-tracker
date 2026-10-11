@@ -18,6 +18,8 @@ const historyStartDate = document.querySelector("#historyStartDate");
 const historyEndDate = document.querySelector("#historyEndDate");
 const clearHistoryFilters = document.querySelector("#clearHistoryFilters");
 const newStudyButton = document.querySelector("#newStudyButton");
+const profileSwitcher = document.querySelector("#profileSwitcher");
+const profileAvatar = document.querySelector("#profileAvatar");
 const saveStudyButton = document.querySelector("#saveStudyButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
 const formHint = document.querySelector("#formHint");
@@ -85,6 +87,7 @@ const selectBackupFileButton = document.querySelector("#selectBackupFile");
 const backupFileInput = document.querySelector("#backupFileInput");
 const auditLogList = document.querySelector("#auditLogList");
 const auditCount = document.querySelector("#auditCount");
+const safetyProfileLabel = document.querySelector("#safetyProfileLabel");
 const todaySummaryText = document.querySelector("#todaySummaryText");
 const todayStartTimerButton = document.querySelector("#todayStartTimer");
 const todayRegisterStudyButton = document.querySelector("#todayRegisterStudy");
@@ -229,6 +232,20 @@ let exactTimeDate = '';
 let activeChartPeriod = '30';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
+const activeProfile = ProfileStorage.getActiveProfile();
+
+function renderActiveProfile() {
+  if (profileSwitcher) profileSwitcher.value = activeProfile.id;
+  if (profileAvatar) profileAvatar.textContent = activeProfile.initials;
+  if (safetyProfileLabel) safetyProfileLabel.textContent = `Perfil ${activeProfile.name}`;
+  document.body.dataset.profile = activeProfile.id;
+}
+
+function switchProfile(profileId) {
+  if (profileId === activeProfile.id) return;
+  if (!ProfileStorage.setActiveId(profileId)) return;
+  window.location.reload();
+}
 
 function getReviewSettings() {
   const record = settings.find((item) => item.id === "review-settings") || {};
@@ -406,17 +423,17 @@ function undoLastStructuralAction() {
 }
 
 function exportCompleteBackup() {
-  const backup = SafetyEngine.createBackup(getSafetyAppState(), safetyState.auditLog, Date.now());
+  const backup = SafetyEngine.createBackup(getSafetyAppState(), safetyState.auditLog, Date.now(), activeProfile);
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `study-tracker-backup-${toISODate()}.json`;
+  link.download = `study-tracker-${activeProfile.id}-backup-${toISODate()}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  addAuditEntry("backup", "Backup completo exportado", `${sessions.length} sessões e ${reviews.length} revisões.`);
+  addAuditEntry("backup", `Backup de ${activeProfile.name} exportado`, `${sessions.length} sessões e ${reviews.length} revisões.`);
   showToast("Backup baixado com sucesso.", "success");
 }
 
@@ -430,7 +447,12 @@ async function importCompleteBackup(file) {
   const questions = data.sessions.reduce((sum,item) => sum + Number(item.questions || 0), 0);
   const seconds = data.sessions.reduce((sum,item) => sum + Number(item.durationSeconds || 0), 0);
   const summary = `${data.sessions.length} sessões • ${formatDuration(seconds)} • ${formatNumber(questions)} questões • ${data.reviews.length} revisões`;
-  if (!window.confirm(`Restaurar este backup?\n\n${summary}\n\nUma cópia do estado atual será criada para permitir desfazer.`)) return;
+  const backupProfileName = String(parsed?.profile?.name || "").trim();
+  const differentProfile = parsed?.profile?.id && parsed.profile.id !== activeProfile.id;
+  const profileNotice = differentProfile
+    ? `\n\nAtenção: este backup pertence a ${backupProfileName || "outro perfil"} e será restaurado no perfil ${activeProfile.name}.`
+    : `\n\nDestino: perfil ${activeProfile.name}.`;
+  if (!window.confirm(`Restaurar este backup?\n\n${summary}${profileNotice}\n\nUma cópia do estado atual será criada para permitir desfazer.`)) return;
   if (!captureUndo("Restauração de backup")) return;
   const restored = SafetyEngine.prepareRestore(getSafetyAppState(), data, Date.now());
   const importedAudit = Array.isArray(data.auditLog) ? data.auditLog : [];
@@ -2920,6 +2942,7 @@ function savePostponement(reviewKey, plannedDate) {
 if (dailyReviewLimitInput) dailyReviewLimitInput.addEventListener("change", saveReviewSettings);
 if (minimumReviewQuestionsInput) minimumReviewQuestionsInput.addEventListener("change", saveReviewSettings);
 if (minimumReviewAccuracyInput) minimumReviewAccuracyInput.addEventListener("change", saveReviewSettings);
+if (profileSwitcher) profileSwitcher.addEventListener("change", () => switchProfile(profileSwitcher.value));
 postponeReviewForm?.addEventListener("submit", (event) => { event.preventDefault(); savePostponement(postponeReviewForm.elements.reviewKey.value, postponeReviewForm.elements.plannedDate.value); });
 postponeReviewModal?.querySelectorAll("[data-postpone-days]").forEach((button) => button.addEventListener("click", () => savePostponement(postponeReviewForm.elements.reviewKey.value, ReviewPlanner.addDays(toISODate(), Number(button.dataset.postponeDays)))));
 closePostponeReviewButton?.addEventListener("click", closePostponeReview);
@@ -3005,6 +3028,7 @@ StudySync.init({
 });
 
 formatToday();
+renderActiveProfile();
 migrateLegacyCatalogState();
 if (mockDate) resetMockForm();
 syncQuestionContextMode();

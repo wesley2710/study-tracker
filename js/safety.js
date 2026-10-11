@@ -48,11 +48,12 @@ const SafetyEngine = (() => {
     return { valid: true, data: clone(data) };
   }
 
-  function createBackup(state, auditLog = [], exportedAt = Date.now()) {
+  function createBackup(state, auditLog = [], exportedAt = Date.now(), profile = null) {
     return {
       schemaVersion: 1,
-      appVersion: "2.1.0",
+      appVersion: "2.2.0",
       exportedAt,
+      profile: profile ? { id: String(profile.id || ""), name: String(profile.name || "") } : null,
       data: {
         sessions: clone(state.sessions || []),
         reviews: clone(state.reviews || []),

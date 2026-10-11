@@ -9,7 +9,7 @@ const StudyApi = (() => {
     const response = await fetch(configuredUrl(), {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, token, ...data }),
+      body: JSON.stringify({ action, token, ...data, ownerId: ProfileStorage.getActiveId() }),
       redirect: "follow"
     });
     if (!response.ok) throw new Error(`HTTP_${response.status}`);

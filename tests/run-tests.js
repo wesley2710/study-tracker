@@ -9,6 +9,27 @@ vm.createContext(reviewContext);
 vm.runInContext(`${fs.readFileSync(path.join(root, "js/reviews.js"), "utf8")}\nthis.engine = ReviewEngine;`, reviewContext);
 const engine = reviewContext.engine;
 
+const storageValues = new Map([["studyTracker.sessions.v1", JSON.stringify([{ id: "legacy-session" }])]]);
+const storageContext = {
+  console,
+  localStorage: {
+    getItem(key) { return storageValues.has(key) ? storageValues.get(key) : null; },
+    setItem(key, value) { storageValues.set(key, String(value)); },
+    removeItem(key) { storageValues.delete(key); }
+  }
+};
+vm.createContext(storageContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/storage.js"), "utf8")}\nthis.profiles = ProfileStorage; this.studyStore = StudyStorage;`, storageContext);
+assert.equal(storageContext.profiles.getActiveId(), "wesley", "dados existentes pertencem a Wesley por padrão");
+assert.equal(storageContext.studyStore.load()[0].id, "legacy-session", "cache antigo é migrado para Wesley sem perda");
+assert.equal(storageContext.profiles.setActiveId("eliane"), true, "perfil Eliane pode ser selecionado");
+assert.deepEqual(Array.from(storageContext.studyStore.load()), [], "Eliane começa com armazenamento vazio");
+storageContext.studyStore.save([{ id: "eliane-session" }]);
+storageContext.profiles.setActiveId("wesley");
+assert.equal(storageContext.studyStore.load()[0].id, "legacy-session", "trocar de perfil preserva os dados de Wesley");
+storageContext.profiles.setActiveId("eliane");
+assert.equal(storageContext.studyStore.load()[0].id, "eliane-session", "dados de Eliane permanecem isolados");
+
 assert.equal(engine.getInitialInterval(), 3, "primeira revisão é sempre em 3 dias");
 assert.equal(engine.getInitialInterval(92), 3, "estudo com 92% continua agendando a primeira revisão em 3 dias");
 assert.equal(engine.getInitialInterval(100), 3, "estudo com 100% não antecipa a progressão");
@@ -221,6 +242,12 @@ assert.equal(consolidatedSubtopics.sessions[2].subtopic, "Pensão por morte", "d
 const appText = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 const backendText = fs.readFileSync(path.join(root, "backend/Code.gs"), "utf8");
 const htmlText = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const apiText = fs.readFileSync(path.join(root, "js/api.js"), "utf8");
+const backendContext = {};
+vm.createContext(backendContext);
+vm.runInContext(`${backendText}\nthis.normalizeOwnerId = normalizeOwnerId_;`, backendContext);
+assert.equal(backendContext.normalizeOwnerId("eliane"), "eliane", "backend reconhece o perfil Eliane");
+assert.equal(backendContext.normalizeOwnerId(""), "wesley", "registros antigos sem perfil continuam com Wesley");
 assert.match(htmlText, /id="performanceDetailsButton"/, "Ver detalhes possui alvo acionável");
 assert.match(appText, /topic-analysis-panel.*scrollIntoView/, "Ver detalhes navega para desempenho detalhado");
 assert.match(htmlText, /id="timeExactDate"/, "banco de horas aceita data específica");
@@ -232,7 +259,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.1\.0/, "motor de segurança é carregado na versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.2\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -243,8 +270,15 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.1\.0/, "preferências de navegação usam o armazenamento atualizado");
-assert.match(htmlText, /js\/app\.js\?v=2\.1\.2/, "cache do aplicativo inclui a meta percentual configurável");
+assert.match(htmlText, /js\/storage\.js\?v=2\.2\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.2\.0/, "aplicativo inclui troca de usuário");
+assert.match(htmlText, /id="profileSwitcher"[\s\S]*value="wesley"[\s\S]*value="eliane"/, "topo permite trocar entre Wesley e Eliane");
+assert.match(appText, /ProfileStorage\.setActiveId\(profileId\)[\s\S]*window\.location\.reload\(\)/, "troca de perfil recarrega o ambiente isolado");
+assert.match(apiText, /ownerId: ProfileStorage\.getActiveId\(\)/, "todas as chamadas à nuvem identificam o perfil ativo");
+assert.equal((backendText.match(/'ownerId'/g) || []).length >= 8, true, "todas as coleções da planilha possuem proprietário");
+assert.match(backendText, /function getAll_\(ownerId\)[\s\S]*readOwned_\('sessions'/, "backend retorna somente os dados do perfil solicitado");
+assert.match(backendText, /recordOwnerId_\(item\) \+ '\|\|\|' \+ item\.id/, "backend separa IDs iguais pertencentes a perfis diferentes");
+assert.match(backendText, /'minimumAccuracy'/, "configuração percentual também é sincronizada na planilha");
 assert.match(htmlText, /id="minimumReviewQuestions"[\s\S]*id="minimumReviewAccuracy"/, "percentual para avançar aparece ao lado da quantidade de questões");
 assert.equal((appText.match(/const reviewSettings = getReviewSettings\(\);\s*const projectedStreak = percentage >= reviewSettings\.minimumAccuracy/g) || []).length, 2, "formulário lê a meta configurada antes de calcular a próxima revisão");
 assert.match(htmlText, /id="catalogConsolidateModal"/, "catálogo possui confirmação detalhada para consolidar subtemas");

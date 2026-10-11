@@ -24,6 +24,8 @@ npx serve .
 
 A tela abre imediatamente com o cache local. Depois consulta a nuvem, une registros pelo `id` e conserva a versão com o `updatedAt` mais recente. Se o backend estiver vazio, os dados locais são migrados automaticamente. Exclusões usam tombstones para que registros antigos não reapareçam.
 
+Os perfis Wesley e Eliane compartilham o mesmo aplicativo e o mesmo segredo de sincronização, mas cada coleção é isolada por `ownerId`. Dados locais antigos e linhas da planilha sem proprietário são associados automaticamente a Wesley. Trocar o usuário recarrega somente o cache do perfil escolhido; registros, catálogo, agenda, simulados, configurações, cronômetro, histórico de alterações e backup não se misturam.
+
 Uma revisão possui `sessionId`, ligando-a à única sessão usada nas estatísticas e evitando dupla contagem. O intervalo salvo não é recalculado ao renderizar o dashboard.
 
 ## Backup e segurança
@@ -84,6 +86,12 @@ Os quatro gráficos compartilham um filtro de 7, 30 ou 90 dias, ano atual, últi
 A central de segurança reúne os itens arquivados e permite restaurar matérias, temas e subtemas com seus vínculos. Alterações estruturais criam uma cópia local automática, permitindo desfazer a ação mais recente sem perder sessões, horas, questões ou revisões.
 
 O backup completo em JSON inclui sessões, revisões, simulados e todo o catálogo. A restauração valida a estrutura e os identificadores antes de substituir os dados, cria uma cópia do estado atual e sincroniza as alterações de forma compatível com os tombstones. Operações grandes mostram previamente seu impacto em registros, tempo, questões e revisões.
+
+Cada backup contém somente o perfil ativo e identifica Wesley ou Eliane no nome do arquivo e nos metadados.
+
+## V2.2 — Perfis separados
+
+O seletor no topo alterna entre Wesley e Eliane sem senha. Todo o ambiente é separado por perfil, tanto no navegador quanto no Google Sheets. A implantação do Apps Script deve ser atualizada antes do frontend para que o servidor filtre os dados pelo proprietário.
 
 O histórico local registra criações, renomeações, mesclagens, arquivamentos, restaurações e exclusões. O indicador de sincronização informa o horário da última conclusão, a quantidade total de registros, alterações pendentes e eventuais erros. Os textos da interface seguem a hierarquia **Matéria → Tema → Subtema**.
 

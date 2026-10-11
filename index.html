@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.1.1" />
+  <link rel="stylesheet" href="css/style.css?v=2.2.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -50,7 +50,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.1</p>
+        <p>Versão 2.2</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
@@ -69,7 +69,14 @@
             <span class="sync-dot"></span><span id="syncStatusText">Somente local</span>
           </button>
           <button class="secondary-button" id="newStudyButton">+ Novo estudo</button>
-          <div class="avatar">WM</div>
+          <label class="profile-switcher" title="Trocar usuário">
+            <span>Perfil</span>
+            <select id="profileSwitcher" aria-label="Trocar usuário">
+              <option value="wesley">Wesley</option>
+              <option value="eliane">Eliane</option>
+            </select>
+          </label>
+          <div class="avatar" id="profileAvatar" aria-hidden="true">WM</div>
         </div>
       </header>
 
@@ -713,7 +720,7 @@
               <span class="panel-kicker">Segurança dos dados</span>
               <h3>Backup, desfazer e histórico</h3>
             </div>
-            <span class="badge">Armazenado neste dispositivo</span>
+            <span class="badge" id="safetyProfileLabel">Perfil Wesley</span>
           </div>
           <div class="safety-grid">
             <article class="safety-card">
@@ -723,7 +730,7 @@
               <button class="ghost-button" id="undoLastAction" type="button" disabled>Desfazer última ação</button>
             </article>
             <article class="safety-card">
-              <span>Backup completo</span>
+              <span>Backup do perfil atual</span>
               <strong>Exportar ou restaurar JSON</strong>
               <small>Inclui estudos, revisões, simulados, catálogo e histórico de alterações. O segredo de acesso nunca é exportado.</small>
               <div class="safety-actions">
@@ -978,13 +985,13 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.1.0"></script>
-  <script src="js/api.js?v=1.1.2"></script>
+  <script src="js/storage.js?v=2.2.0"></script>
+  <script src="js/api.js?v=2.2.0"></script>
   <script src="js/sync.js?v=2.0.0"></script>
   <script src="js/reviews.js?v=2.1.1"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.1.0"></script>
-  <script src="js/app.js?v=2.1.2"></script>
+  <script src="js/safety.js?v=2.2.0"></script>
+  <script src="js/app.js?v=2.2.0"></script>
 </body>
 </html>

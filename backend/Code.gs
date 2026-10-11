@@ -1,22 +1,25 @@
 const SHEETS = {
   sessions: {
     name: 'Sessions',
-    headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'reviewOutcome', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'reviewOutcome', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId']
   },
   reviews: {
     name: 'Reviews',
-    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'intervalReason', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'sessionId', 'reviewKey', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'previousInterval', 'nextInterval', 'intervalReason', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId']
   },
   mocks: {
     name: 'Mocks',
-    headers: ['id', 'name', 'date', 'overallScore', 'overallMaxScore', 'subjectScores', 'createdAt', 'updatedAt', 'deletedAt']
+    headers: ['id', 'name', 'date', 'overallScore', 'overallMaxScore', 'subjectScores', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId']
   },
-  subjects: { name: 'Subjects', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
-  topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
-  subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
-  reviewPlans: { name: 'ReviewPlans', headers: ['id', 'reviewKey', 'originalDueDate', 'plannedDate', 'reason', 'createdAt', 'updatedAt', 'deletedAt'] },
-  settings: { name: 'Settings', headers: ['id', 'dailyReviewLimit', 'minimumQuestions', 'createdAt', 'updatedAt', 'deletedAt'] }
+  subjects: { name: 'Subjects', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
+  topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
+  subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
+  reviewPlans: { name: 'ReviewPlans', headers: ['id', 'reviewKey', 'originalDueDate', 'plannedDate', 'reason', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
+  settings: { name: 'Settings', headers: ['id', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] }
 };
+
+const DEFAULT_OWNER_ID = 'wesley';
+const ALLOWED_OWNER_IDS = ['wesley', 'eliane'];
 
 function doGet(e) {
   return handleRequest_((e && e.parameter) || { action: 'getAll' });
@@ -33,17 +36,31 @@ function doPost(e) {
 function handleRequest_(request) {
   try {
     authorize_(request);
+    const ownerId = ownerIdFromRequest_(request);
     const action = request.action || 'getAll';
-    if (action === 'getAll') return json_({ ok: true, data: getAll_() });
-    if (action === 'sync') return json_({ ok: true, data: sync_(request) });
-    if (action === 'saveSession') return json_({ ok: true, data: upsertOne_('sessions', request.record) });
-    if (action === 'saveReview') return json_({ ok: true, data: upsertOne_('reviews', request.record) });
-    if (action === 'deleteSession') return json_({ ok: true, data: deleteOne_('sessions', request.id, request.deletedAt) });
-    if (action === 'deleteReview') return json_({ ok: true, data: deleteOne_('reviews', request.id, request.deletedAt) });
+    if (action === 'getAll') return json_({ ok: true, data: getAll_(ownerId) });
+    if (action === 'sync') return json_({ ok: true, data: sync_(request, ownerId) });
+    if (action === 'saveSession') return json_({ ok: true, data: upsertOne_('sessions', request.record, ownerId) });
+    if (action === 'saveReview') return json_({ ok: true, data: upsertOne_('reviews', request.record, ownerId) });
+    if (action === 'deleteSession') return json_({ ok: true, data: deleteOne_('sessions', request.id, request.deletedAt, ownerId) });
+    if (action === 'deleteReview') return json_({ ok: true, data: deleteOne_('reviews', request.id, request.deletedAt, ownerId) });
     throw new Error('Ação inválida: ' + action);
   } catch (error) {
     return json_({ ok: false, error: String(error.message || error) });
   }
+}
+
+function normalizeOwnerId_(ownerId) {
+  const normalized = String(ownerId || '').trim().toLowerCase();
+  return ALLOWED_OWNER_IDS.indexOf(normalized) >= 0 ? normalized : DEFAULT_OWNER_ID;
+}
+
+function ownerIdFromRequest_(request) {
+  return normalizeOwnerId_(request && request.ownerId);
+}
+
+function recordOwnerId_(record) {
+  return normalizeOwnerId_(record && record.ownerId);
 }
 
 function authorize_(request) {
@@ -61,34 +78,41 @@ function safeEqual_(left, right) {
   return difference === 0;
 }
 
-function sync_(request) {
+function sync_(request, ownerId) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    applyTombstones_('sessions', request.sessionTombstones || {});
-    applyTombstones_('reviews', request.reviewTombstones || {});
-    applyTombstones_('mocks', request.mockTombstones || {});
-    applyTombstones_('subjects', request.subjectTombstones || {});
-    applyTombstones_('topics', request.topicTombstones || {});
-    applyTombstones_('subtopics', request.subtopicTombstones || {});
-    applyTombstones_('reviewPlans', request.reviewPlanTombstones || {});
-    applyTombstones_('settings', request.settingTombstones || {});
-    upsertMany_('sessions', request.sessions || []);
-    upsertMany_('reviews', request.reviews || []);
-    upsertMany_('mocks', request.mocks || []);
-    upsertMany_('subjects', request.subjects || []);
-    upsertMany_('topics', request.topics || []);
-    upsertMany_('subtopics', request.subtopics || []);
-    upsertMany_('reviewPlans', request.reviewPlans || []);
-    upsertMany_('settings', request.settings || []);
-    return getAll_();
+    applyTombstones_('sessions', request.sessionTombstones || {}, ownerId);
+    applyTombstones_('reviews', request.reviewTombstones || {}, ownerId);
+    applyTombstones_('mocks', request.mockTombstones || {}, ownerId);
+    applyTombstones_('subjects', request.subjectTombstones || {}, ownerId);
+    applyTombstones_('topics', request.topicTombstones || {}, ownerId);
+    applyTombstones_('subtopics', request.subtopicTombstones || {}, ownerId);
+    applyTombstones_('reviewPlans', request.reviewPlanTombstones || {}, ownerId);
+    applyTombstones_('settings', request.settingTombstones || {}, ownerId);
+    upsertMany_('sessions', request.sessions || [], ownerId);
+    upsertMany_('reviews', request.reviews || [], ownerId);
+    upsertMany_('mocks', request.mocks || [], ownerId);
+    upsertMany_('subjects', request.subjects || [], ownerId);
+    upsertMany_('topics', request.topics || [], ownerId);
+    upsertMany_('subtopics', request.subtopics || [], ownerId);
+    upsertMany_('reviewPlans', request.reviewPlans || [], ownerId);
+    upsertMany_('settings', request.settings || [], ownerId);
+    return getAll_(ownerId);
   } finally {
     lock.releaseLock();
   }
 }
 
-function getAll_() {
-  return { sessions: read_('sessions', false), reviews: read_('reviews', false), mocks: read_('mocks', false), subjects: read_('subjects', false), topics: read_('topics', false), subtopics: read_('subtopics', false), reviewPlans: read_('reviewPlans', false), settings: read_('settings', false), serverTime: Date.now() };
+function readOwned_(type, includeDeleted, ownerId) {
+  const normalizedOwnerId = normalizeOwnerId_(ownerId);
+  return read_(type, includeDeleted)
+    .filter(function(item) { return recordOwnerId_(item) === normalizedOwnerId; })
+    .map(function(item) { return Object.assign({}, item, { ownerId: normalizedOwnerId }); });
+}
+
+function getAll_(ownerId) {
+  return { sessions: readOwned_('sessions', false, ownerId), reviews: readOwned_('reviews', false, ownerId), mocks: readOwned_('mocks', false, ownerId), subjects: readOwned_('subjects', false, ownerId), topics: readOwned_('topics', false, ownerId), subtopics: readOwned_('subtopics', false, ownerId), reviewPlans: readOwned_('reviewPlans', false, ownerId), settings: readOwned_('settings', false, ownerId), serverTime: Date.now() };
 }
 
 function sheet_(type) {
@@ -128,7 +152,7 @@ function read_(type, includeDeleted) {
     .map(function(row) {
       const item = {};
       spec.headers.forEach(function(header) { item[header] = info.index[header] == null ? '' : row[info.index[header]]; });
-      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore', 'dailyReviewLimit', 'minimumQuestions'].forEach(function(key) {
+      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy'].forEach(function(key) {
         if (item[key] !== '') item[key] = Number(item[key]);
       });
       return item;
@@ -136,24 +160,26 @@ function read_(type, includeDeleted) {
     .filter(function(item) { return item.id && (includeDeleted || !item.deletedAt); });
 }
 
-function upsertMany_(type, records) {
+function upsertMany_(type, records, ownerId) {
   if (!records.length) return;
+  const normalizedOwnerId = normalizeOwnerId_(ownerId);
   const spec = SHEETS[type];
   const info = headerInfo_(type);
   const sheet = info.sheet;
   const existing = read_(type, true);
   const byId = {};
   const rawRows = sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, info.headers.length).getValues();
-  existing.forEach(function(item, index) { byId[item.id] = { item: item, row: index + 2, raw: rawRows[index] || [] }; });
+  existing.forEach(function(item, index) { byId[recordOwnerId_(item) + '|||' + item.id] = { item: item, row: index + 2, raw: rawRows[index] || [] }; });
   const additions = [];
   records.forEach(function(record) {
     if (!record || !record.id) return;
-    const found = byId[record.id];
-    const incomingTime = Number(record.deletedAt || record.updatedAt || record.createdAt || 0);
+    const scopedRecord = Object.assign({}, record, { ownerId: normalizedOwnerId });
+    const found = byId[normalizedOwnerId + '|||' + scopedRecord.id];
+    const incomingTime = Number(scopedRecord.deletedAt || scopedRecord.updatedAt || scopedRecord.createdAt || 0);
     const storedTime = found ? Number(found.item.deletedAt || found.item.updatedAt || found.item.createdAt || 0) : -1;
     if (found && incomingTime < storedTime) return;
     const row = info.headers.map(function(header, index) {
-      return spec.headers.indexOf(header) === -1 ? (found ? found.raw[index] : '') : (record[header] == null ? '' : record[header]);
+      return spec.headers.indexOf(header) === -1 ? (found ? found.raw[index] : '') : (scopedRecord[header] == null ? '' : scopedRecord[header]);
     });
     if (found) sheet.getRange(found.row, 1, 1, row.length).setValues([row]);
     else additions.push(row);
@@ -161,20 +187,22 @@ function upsertMany_(type, records) {
   if (additions.length) sheet.getRange(sheet.getLastRow() + 1, 1, additions.length, info.headers.length).setValues(additions);
 }
 
-function upsertOne_(type, record) {
-  upsertMany_(type, [record]);
-  return record;
+function upsertOne_(type, record, ownerId) {
+  const scopedRecord = Object.assign({}, record, { ownerId: normalizeOwnerId_(ownerId) });
+  upsertMany_(type, [scopedRecord], ownerId);
+  return scopedRecord;
 }
 
-function applyTombstones_(type, tombstones) {
-  Object.keys(tombstones).forEach(function(id) { deleteOne_(type, id, tombstones[id]); });
+function applyTombstones_(type, tombstones, ownerId) {
+  Object.keys(tombstones).forEach(function(id) { deleteOne_(type, id, tombstones[id], ownerId); });
 }
 
-function deleteOne_(type, id, deletedAt) {
+function deleteOne_(type, id, deletedAt, ownerId) {
   if (!id) throw new Error('ID obrigatório');
-  const found = read_(type, true).find(function(item) { return item.id === id; });
-  const tombstone = Object.assign({}, found || { id: id, createdAt: deletedAt }, { deletedAt: Number(deletedAt || Date.now()), updatedAt: Number(deletedAt || Date.now()) });
-  upsertMany_(type, [tombstone]);
+  const normalizedOwnerId = normalizeOwnerId_(ownerId);
+  const found = read_(type, true).find(function(item) { return item.id === id && recordOwnerId_(item) === normalizedOwnerId; });
+  const tombstone = Object.assign({}, found || { id: id, createdAt: deletedAt }, { ownerId: normalizedOwnerId, deletedAt: Number(deletedAt || Date.now()), updatedAt: Number(deletedAt || Date.now()) });
+  upsertMany_(type, [tombstone], normalizedOwnerId);
   return { id: id, deletedAt: tombstone.deletedAt };
 }
 

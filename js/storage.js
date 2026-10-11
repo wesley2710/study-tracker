@@ -1,9 +1,55 @@
+const STUDY_TRACKER_PROFILES = Object.freeze([
+  Object.freeze({ id: "wesley", name: "Wesley", initials: "WM" }),
+  Object.freeze({ id: "eliane", name: "Eliane", initials: "EL" })
+]);
+const ACTIVE_PROFILE_KEY = "studyTracker.activeProfile.v1";
+const PROFILE_SCOPED_LEGACY_KEYS = [
+  "studyTracker.sessions.v1",
+  "studyTracker.reviews.v1",
+  "studyTracker.reviewPlans.v1",
+  "studyTracker.settings.v1",
+  "studyTracker.activeTimer.v1",
+  "studyTracker.sync.v1",
+  "studyTracker.mocks.v1",
+  "studyTracker.catalog.v1",
+  "studyTracker.safety.v1",
+  "studyTracker.ui.v1"
+];
+
+const ProfileStorage = {
+  list() { return STUDY_TRACKER_PROFILES.map((profile) => ({ ...profile })); },
+  getActiveId() {
+    const stored = String(localStorage.getItem(ACTIVE_PROFILE_KEY) || "").trim().toLowerCase();
+    return STUDY_TRACKER_PROFILES.some((profile) => profile.id === stored) ? stored : "wesley";
+  },
+  getActiveProfile() {
+    const activeId = this.getActiveId();
+    return this.list().find((profile) => profile.id === activeId) || this.list()[0];
+  },
+  setActiveId(profileId) {
+    const normalized = String(profileId || "").trim().toLowerCase();
+    if (!STUDY_TRACKER_PROFILES.some((profile) => profile.id === normalized)) return false;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, normalized);
+    return true;
+  },
+  scopedKey(baseKey, profileId = this.getActiveId()) { return `${baseKey}.${profileId}`; },
+  migrateLegacyData() {
+    PROFILE_SCOPED_LEGACY_KEYS.forEach((legacyKey) => {
+      const legacyValue = localStorage.getItem(legacyKey);
+      const wesleyKey = this.scopedKey(legacyKey, "wesley");
+      if (legacyValue != null && localStorage.getItem(wesleyKey) == null) localStorage.setItem(wesleyKey, legacyValue);
+    });
+  }
+};
+
+ProfileStorage.migrateLegacyData();
+
 const STORAGE_KEY = "studyTracker.sessions.v1";
 
 const StudyStorage = {
   load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(ProfileStorage.scopedKey(STORAGE_KEY));
       if (!raw) return [];
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
@@ -14,11 +60,11 @@ const StudyStorage = {
   },
 
   save(sessions) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    localStorage.setItem(ProfileStorage.scopedKey(STORAGE_KEY), JSON.stringify(sessions));
   },
 
   clear() {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(ProfileStorage.scopedKey(STORAGE_KEY));
   }
 };
 
@@ -27,7 +73,7 @@ const REVIEW_STORAGE_KEY = "studyTracker.reviews.v1";
 const ReviewStorage = {
   load() {
     try {
-      const raw = localStorage.getItem(REVIEW_STORAGE_KEY);
+      const raw = localStorage.getItem(ProfileStorage.scopedKey(REVIEW_STORAGE_KEY));
       if (!raw) return [];
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
@@ -38,11 +84,11 @@ const ReviewStorage = {
   },
 
   save(reviews) {
-    localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(reviews));
+    localStorage.setItem(ProfileStorage.scopedKey(REVIEW_STORAGE_KEY), JSON.stringify(reviews));
   },
 
   clear() {
-    localStorage.removeItem(REVIEW_STORAGE_KEY);
+    localStorage.removeItem(ProfileStorage.scopedKey(REVIEW_STORAGE_KEY));
   }
 };
 
@@ -50,15 +96,15 @@ function createArrayStorage(key, label) {
   return {
     load() {
       try {
-        const value = JSON.parse(localStorage.getItem(key) || "[]");
+        const value = JSON.parse(localStorage.getItem(ProfileStorage.scopedKey(key)) || "[]");
         return Array.isArray(value) ? value : [];
       } catch (error) {
         console.error(`Erro ao carregar ${label}:`, error);
         return [];
       }
     },
-    save(value) { localStorage.setItem(key, JSON.stringify(Array.isArray(value) ? value : [])); },
-    clear() { localStorage.removeItem(key); }
+    save(value) { localStorage.setItem(ProfileStorage.scopedKey(key), JSON.stringify(Array.isArray(value) ? value : [])); },
+    clear() { localStorage.removeItem(ProfileStorage.scopedKey(key)); }
   };
 }
 
@@ -71,17 +117,17 @@ const TIMER_STORAGE_KEY = "studyTracker.activeTimer.v1";
 const TimerStorage = {
   load() {
     try {
-      const raw = localStorage.getItem(TIMER_STORAGE_KEY);
+      const raw = localStorage.getItem(ProfileStorage.scopedKey(TIMER_STORAGE_KEY));
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   },
   save(timer) {
-    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
+    localStorage.setItem(ProfileStorage.scopedKey(TIMER_STORAGE_KEY), JSON.stringify(timer));
   },
   clear() {
-    localStorage.removeItem(TIMER_STORAGE_KEY);
+    localStorage.removeItem(ProfileStorage.scopedKey(TIMER_STORAGE_KEY));
   }
 };
 
@@ -91,7 +137,7 @@ const AUTH_TOKEN_KEY = "studyTracker.authToken.v1";
 const SyncStorage = {
   load() {
     try {
-      const value = JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}");
+      const value = JSON.parse(localStorage.getItem(ProfileStorage.scopedKey(SYNC_META_KEY)) || "{}");
       return {
         sessionTombstones: value.sessionTombstones || {},
         reviewTombstones: value.reviewTombstones || {},
@@ -110,7 +156,7 @@ const SyncStorage = {
     }
   },
   save(value) {
-    localStorage.setItem(SYNC_META_KEY, JSON.stringify(value));
+    localStorage.setItem(ProfileStorage.scopedKey(SYNC_META_KEY), JSON.stringify(value));
   }
 };
 
@@ -126,7 +172,7 @@ const MOCK_STORAGE_KEY = "studyTracker.mocks.v1";
 const MockStorage = {
   load() {
     try {
-      const raw = localStorage.getItem(MOCK_STORAGE_KEY);
+      const raw = localStorage.getItem(ProfileStorage.scopedKey(MOCK_STORAGE_KEY));
       if (!raw) return [];
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
@@ -135,26 +181,26 @@ const MockStorage = {
       return [];
     }
   },
-  save(mocks) { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(mocks)); },
-  clear() { localStorage.removeItem(MOCK_STORAGE_KEY); }
+  save(mocks) { localStorage.setItem(ProfileStorage.scopedKey(MOCK_STORAGE_KEY), JSON.stringify(mocks)); },
+  clear() { localStorage.removeItem(ProfileStorage.scopedKey(MOCK_STORAGE_KEY)); }
 };
 
 
 const CATALOG_STORAGE_KEY = "studyTracker.catalog.v1";
 const CatalogStorage = {
   load() {
-    try { const data = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "{}"); return { subjects: Array.isArray(data.subjects) ? data.subjects : [], topics: Array.isArray(data.topics) ? data.topics : [], subtopics: Array.isArray(data.subtopics) ? data.subtopics : [] }; }
+    try { const data = JSON.parse(localStorage.getItem(ProfileStorage.scopedKey(CATALOG_STORAGE_KEY)) || "{}"); return { subjects: Array.isArray(data.subjects) ? data.subjects : [], topics: Array.isArray(data.topics) ? data.topics : [], subtopics: Array.isArray(data.subtopics) ? data.subtopics : [] }; }
     catch (error) { console.error("Erro ao carregar catálogo:", error); return { subjects: [], topics: [], subtopics: [] }; }
   },
-  save(catalog) { localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(catalog)); },
-  clear() { localStorage.removeItem(CATALOG_STORAGE_KEY); }
+  save(catalog) { localStorage.setItem(ProfileStorage.scopedKey(CATALOG_STORAGE_KEY), JSON.stringify(catalog)); },
+  clear() { localStorage.removeItem(ProfileStorage.scopedKey(CATALOG_STORAGE_KEY)); }
 };
 
 const SAFETY_STORAGE_KEY = "studyTracker.safety.v1";
 const SafetyStorage = {
   load() {
     try {
-      const data = JSON.parse(localStorage.getItem(SAFETY_STORAGE_KEY) || "{}");
+      const data = JSON.parse(localStorage.getItem(ProfileStorage.scopedKey(SAFETY_STORAGE_KEY)) || "{}");
       return {
         undoSnapshot: data.undoSnapshot && typeof data.undoSnapshot === "object" ? data.undoSnapshot : null,
         auditLog: Array.isArray(data.auditLog) ? data.auditLog.slice(0, 100) : []
@@ -166,7 +212,7 @@ const SafetyStorage = {
   },
   save(value) {
     try {
-      localStorage.setItem(SAFETY_STORAGE_KEY, JSON.stringify({
+      localStorage.setItem(ProfileStorage.scopedKey(SAFETY_STORAGE_KEY), JSON.stringify({
         undoSnapshot: value?.undoSnapshot || null,
         auditLog: Array.isArray(value?.auditLog) ? value.auditLog.slice(0, 100) : []
       }));
@@ -176,14 +222,14 @@ const SafetyStorage = {
       return false;
     }
   },
-  clear() { localStorage.removeItem(SAFETY_STORAGE_KEY); }
+  clear() { localStorage.removeItem(ProfileStorage.scopedKey(SAFETY_STORAGE_KEY)); }
 };
 
 const UI_STORAGE_KEY = "studyTracker.ui.v1";
 const UiStorage = {
   load() {
     try {
-      const value = JSON.parse(localStorage.getItem(UI_STORAGE_KEY) || "{}");
+      const value = JSON.parse(localStorage.getItem(ProfileStorage.scopedKey(UI_STORAGE_KEY)) || "{}");
       return {
         dailyGoalMinutes: Math.max(15, Math.min(1440, Number(value.dailyGoalMinutes || 120))),
         activeSection: typeof value.activeSection === "string" ? value.activeSection : "dashboard",
@@ -197,7 +243,7 @@ const UiStorage = {
     }
   },
   save(value) {
-    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(ProfileStorage.scopedKey(UI_STORAGE_KEY), JSON.stringify({
       dailyGoalMinutes: Number(value?.dailyGoalMinutes || 120),
       activeSection: typeof value?.activeSection === "string" ? value.activeSection : "dashboard",
       collapsible: value?.collapsible || {},
@@ -205,5 +251,5 @@ const UiStorage = {
       openTopics: Array.isArray(value?.openTopics) ? value.openTopics : []
     }));
   },
-  clear() { localStorage.removeItem(UI_STORAGE_KEY); }
+  clear() { localStorage.removeItem(ProfileStorage.scopedKey(UI_STORAGE_KEY)); }
 };
