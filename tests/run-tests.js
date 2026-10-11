@@ -140,7 +140,7 @@ assert.match(appSource, /reviewKey = activityType === "review"/, "estudo e bater
 assert.match(appSource, /ReviewEngine\.shouldResetCycle\(latestNormalStudySession, latestReview\)/, "novo estudo normal posterior reinicia somente a agenda adaptativa");
 assert.match(appSource, /cycleStudySession = studyStartsNewCycle \? latestNormalStudySession : latestStudySession/, "bateria independente posterior não desloca a data-base do ciclo reiniciado");
 assert.match(appSource, /subject-row \$\{classify\(item\.percentage\)\.className\}/, "barras por matéria recebem cor conforme o desempenho");
-assert.match(appSource, /Chart\.defaults\.color = "#8292a6"/, "gráficos usam tema visual integrado ao painel");
+assert.match(appSource, /Chart\.defaults\.color = chartMuted/, "gráficos usam tema visual integrado ao painel");
 assert.match(appSource, /activeChartPeriod = '30'/, "gráficos iniciam com período útil de 30 dias");
 assert.match(appSource, /getChartGranularity\(range\)/, "agrupamento dos gráficos se adapta ao período");
 assert.match(appSource, /questionsPerHour/, "eficiência compara questões por hora por matéria");
@@ -277,12 +277,17 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.3\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.3\.0/, "aplicativo inclui perfis gerenciáveis");
+assert.match(htmlText, /js\/storage\.js\?v=2\.4\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.4\.0/, "aplicativo inclui perfis gerenciáveis");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
 assert.match(htmlText, /id="createProfileForm"[\s\S]*id="profilesList"/, "modal permite criar e editar perfis pelo site");
 assert.doesNotMatch(htmlText, /value="eliane"/, "Eliane não é criada automaticamente");
 assert.match(appText, /ProfileStorage\.setActiveId\(profileId\)[\s\S]*window\.location\.reload\(\)/, "troca de perfil recarrega o ambiente isolado");
+assert.match(htmlText, /id="themeToggle"[^>]*aria-label="Ativar modo claro"/, "cabeçalho oferece alternância acessível de tema");
+assert.match(appText, /ThemeStorage\.load\(\)[\s\S]*document\.documentElement\.dataset\.theme/, "tema salvo é restaurado no carregamento");
+assert.match(appText, /getComputedStyle\(document\.documentElement\)[\s\S]*--chart-grid/, "gráficos usam a paleta do tema ativo");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /:root\[data-theme="light"\][\s\S]*--surface:\s*#ffffff/, "modo claro possui paleta própria de superfícies");
+assert.doesNotMatch(htmlText, /<span>Perfil<\/span>/, "seletor de perfil não fica desalinhado por um rótulo visual acima");
 assert.match(apiText, /ownerId: ProfileStorage\.getActiveId\(\)/, "todas as chamadas à nuvem identificam o perfil ativo");
 assert.equal((backendText.match(/'ownerId'/g) || []).length >= 8, true, "todas as coleções da planilha possuem proprietário");
 assert.match(backendText, /function getAll_\(ownerId\)[\s\S]*readOwned_\('sessions'/, "backend retorna somente os dados do perfil solicitado");

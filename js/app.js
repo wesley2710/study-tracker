@@ -20,6 +20,7 @@ const clearHistoryFilters = document.querySelector("#clearHistoryFilters");
 const newStudyButton = document.querySelector("#newStudyButton");
 const profileSwitcher = document.querySelector("#profileSwitcher");
 const profileAvatar = document.querySelector("#profileAvatar");
+const themeToggle = document.querySelector("#themeToggle");
 const manageProfilesButton = document.querySelector("#manageProfilesButton");
 const profilesModal = document.querySelector("#profilesModal");
 const closeProfilesModalButton = document.querySelector("#closeProfilesModal");
@@ -239,6 +240,25 @@ let activeChartPeriod = '30';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
 let activeProfile = ProfileStorage.getActiveProfile();
+let activeTheme = ThemeStorage.load();
+
+function applyTheme(theme, { persist = false, redraw = false } = {}) {
+  activeTheme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = activeTheme;
+  document.documentElement.style.colorScheme = activeTheme;
+  if (persist) ThemeStorage.save(activeTheme);
+  if (themeToggle) {
+    const nextLabel = activeTheme === "dark" ? "Ativar modo claro" : "Ativar modo escuro";
+    themeToggle.textContent = activeTheme === "dark" ? "☀" : "☾";
+    themeToggle.setAttribute("aria-label", nextLabel);
+    themeToggle.title = nextLabel;
+    themeToggle.setAttribute("aria-pressed", String(activeTheme === "light"));
+  }
+  if (redraw) {
+    renderCharts();
+    renderMockChart();
+  }
+}
 
 function renderActiveProfile() {
   activeProfile = ProfileStorage.getActiveProfile();
@@ -1283,14 +1303,22 @@ function destroyChart(instance) {
 function renderCharts() {
   if (typeof Chart === "undefined") return;
 
-  Chart.defaults.color = "#8292a6";
+  const themeStyles = getComputedStyle(document.documentElement);
+  const themeColor = (name, fallback) => themeStyles.getPropertyValue(name).trim() || fallback;
+  const chartMuted = themeColor("--chart-muted", "#8292a6");
+  const chartGrid = themeColor("--chart-grid", "rgba(148,169,194,.09)");
+  const chartTooltip = themeColor("--chart-tooltip", "#111923");
+  const chartTooltipText = themeColor("--chart-tooltip-text", "#f4f7fb");
+  const chartTooltipBody = themeColor("--chart-tooltip-body", "#b8c4d2");
+  const chartPointBorder = themeColor("--chart-point-border", "#0c1118");
+  Chart.defaults.color = chartMuted;
   Chart.defaults.font.family = 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   Chart.defaults.font.size = 10;
-  Chart.defaults.borderColor = "rgba(148,169,194,.12)";
+  Chart.defaults.borderColor = chartGrid;
 
-  const gridStyle = { color: "rgba(148,169,194,.09)", drawBorder: false };
-  const tickStyle = { color: "#71839a", padding: 8 };
-  const tooltipStyle = { backgroundColor: "#111923", borderColor: "rgba(148,169,194,.22)", borderWidth: 1, titleColor: "#f4f7fb", bodyColor: "#b8c4d2", padding: 11, displayColors: false };
+  const gridStyle = { color: chartGrid, drawBorder: false };
+  const tickStyle = { color: chartMuted, padding: 8 };
+  const tooltipStyle = { backgroundColor: chartTooltip, borderColor: chartGrid, borderWidth: 1, titleColor: chartTooltipText, bodyColor: chartTooltipBody, padding: 11, displayColors: false };
 
   const range = getChartPeriodRange();
   const filteredSessions = sessionsInChartRange(range);
@@ -1323,7 +1351,7 @@ function renderCharts() {
         pointRadius: 3,
         pointHoverRadius: 5,
         pointBackgroundColor: "#75a6ff",
-        pointBorderColor: "#0c1118",
+        pointBorderColor: chartPointBorder,
         pointBorderWidth: 2,
         fill: true
       }, {
@@ -2991,6 +3019,7 @@ if (dailyReviewLimitInput) dailyReviewLimitInput.addEventListener("change", save
 if (minimumReviewQuestionsInput) minimumReviewQuestionsInput.addEventListener("change", saveReviewSettings);
 if (minimumReviewAccuracyInput) minimumReviewAccuracyInput.addEventListener("change", saveReviewSettings);
 if (profileSwitcher) profileSwitcher.addEventListener("change", () => switchProfile(profileSwitcher.value));
+themeToggle?.addEventListener("click", () => applyTheme(activeTheme === "dark" ? "light" : "dark", { persist: true, redraw: true }));
 manageProfilesButton?.addEventListener("click", openProfilesManager);
 closeProfilesModalButton?.addEventListener("click", closeProfilesManager);
 doneProfilesButton?.addEventListener("click", closeProfilesManager);
@@ -3111,6 +3140,7 @@ StudySync.init({
 });
 
 formatToday();
+applyTheme(activeTheme);
 renderActiveProfile();
 migrateLegacyCatalogState();
 if (mockDate) resetMockForm();

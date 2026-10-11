@@ -1,5 +1,6 @@
 const ACTIVE_PROFILE_KEY = "studyTracker.activeProfile.v1";
 const PROFILE_STORAGE_KEY = "studyTracker.profiles.v1";
+const THEME_STORAGE_KEY = "studyTracker.theme.v1";
 const PROFILE_SCOPED_LEGACY_KEYS = [
   "studyTracker.sessions.v1",
   "studyTracker.reviews.v1",
@@ -83,6 +84,15 @@ const ProfileStorage = {
       const wesleyKey = this.scopedKey(legacyKey, "wesley");
       if (legacyValue != null && localStorage.getItem(wesleyKey) == null) localStorage.setItem(wesleyKey, legacyValue);
     });
+  }
+};
+
+const ThemeStorage = {
+  load() { return localStorage.getItem(THEME_STORAGE_KEY) === "light" ? "light" : "dark"; },
+  save(theme) {
+    const normalized = theme === "light" ? "light" : "dark";
+    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    return normalized;
   }
 };
 

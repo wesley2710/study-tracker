@@ -93,6 +93,10 @@ Cada backup contém somente o perfil ativo e registra seu nome e identificador n
 
 O seletor no topo alterna entre os perfis ativos sem senha. O botão de gerenciamento permite criar, renomear, arquivar e restaurar ambientes sem modificar o código. Somente Wesley é criado na migração; outros perfis começam vazios quando o usuário os cria. Todo o ambiente é separado por perfil, tanto no navegador quanto no Google Sheets. A implantação do Apps Script deve ser atualizada antes do frontend para que o servidor filtre os dados pelo proprietário e sincronize a lista global de perfis.
 
+## V2.4 — Aparência clara e escura
+
+O botão de tema no cabeçalho alterna entre modo escuro e modo claro. A preferência fica salva no navegador e é aplicada antes da primeira renderização para evitar mudança brusca de cores. Cartões, formulários, tabelas, modais, estados de interação e gráficos utilizam paletas próprias para manter contraste e legibilidade nos dois modos.
+
 O histórico local registra criações, renomeações, mesclagens, arquivamentos, restaurações e exclusões. O indicador de sincronização informa o horário da última conclusão, a quantidade total de registros, alterações pendentes e eventuais erros. Os textos da interface seguem a hierarquia **Matéria → Tema → Subtema**.
 
 ## V1.9 — Hoje e melhorias de usabilidade
