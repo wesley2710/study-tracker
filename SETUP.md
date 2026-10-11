@@ -48,6 +48,6 @@ Risco: qualquer pessoa que possua a URL pode ler ou gravar dados. Não a compart
 
 Após mudar `Code.gs`, use **Implantar > Gerenciar implantações > Editar > Nova versão** para preservar a URL.
 
-## Atualização para perfis Wesley e Eliane
+## Atualização para perfis gerenciáveis
 
-Antes de publicar o frontend da versão 2.2, substitua o `Code.gs` pela versão atual e crie uma nova versão da implantação existente. O backend acrescentará a coluna `ownerId` sem apagar ou mover colunas anteriores. Linhas antigas sem proprietário são tratadas como dados de Wesley e recebem o identificador na primeira sincronização. O perfil Eliane começa vazio.
+Antes de publicar o frontend da versão 2.3, substitua o `Code.gs` pela versão atual e crie uma nova versão da implantação existente. O backend acrescentará a coluna `ownerId` sem apagar ou mover colunas anteriores e criará a aba `Profiles`. Linhas antigas sem proprietário são tratadas como dados de Wesley e recebem o identificador na primeira sincronização. Somente Wesley é criado automaticamente; novos perfis podem ser criados e renomeados pelo site e começam vazios.

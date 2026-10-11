@@ -51,7 +51,7 @@ const SafetyEngine = (() => {
   function createBackup(state, auditLog = [], exportedAt = Date.now(), profile = null) {
     return {
       schemaVersion: 1,
-      appVersion: "2.2.0",
+      appVersion: "2.3.0",
       exportedAt,
       profile: profile ? { id: String(profile.id || ""), name: String(profile.name || "") } : null,
       data: {

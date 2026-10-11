@@ -1,4 +1,5 @@
 const SHEETS = {
+  profiles: { name: 'Profiles', headers: ['id', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt'] },
   sessions: {
     name: 'Sessions',
     headers: ['id', 'subjectId', 'topicId', 'subtopicId', 'subject', 'topic', 'subtopic', 'questions', 'correct', 'date', 'activityType', 'questionContext', 'reviewKey', 'reviewOutcome', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId']
@@ -19,7 +20,6 @@ const SHEETS = {
 };
 
 const DEFAULT_OWNER_ID = 'wesley';
-const ALLOWED_OWNER_IDS = ['wesley', 'eliane'];
 
 function doGet(e) {
   return handleRequest_((e && e.parameter) || { action: 'getAll' });
@@ -52,7 +52,7 @@ function handleRequest_(request) {
 
 function normalizeOwnerId_(ownerId) {
   const normalized = String(ownerId || '').trim().toLowerCase();
-  return ALLOWED_OWNER_IDS.indexOf(normalized) >= 0 ? normalized : DEFAULT_OWNER_ID;
+  return /^[a-z0-9][a-z0-9_-]{0,79}$/.test(normalized) ? normalized : DEFAULT_OWNER_ID;
 }
 
 function ownerIdFromRequest_(request) {
@@ -82,6 +82,7 @@ function sync_(request, ownerId) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    upsertMany_('profiles', request.profiles || []);
     applyTombstones_('sessions', request.sessionTombstones || {}, ownerId);
     applyTombstones_('reviews', request.reviewTombstones || {}, ownerId);
     applyTombstones_('mocks', request.mockTombstones || {}, ownerId);
@@ -112,7 +113,7 @@ function readOwned_(type, includeDeleted, ownerId) {
 }
 
 function getAll_(ownerId) {
-  return { sessions: readOwned_('sessions', false, ownerId), reviews: readOwned_('reviews', false, ownerId), mocks: readOwned_('mocks', false, ownerId), subjects: readOwned_('subjects', false, ownerId), topics: readOwned_('topics', false, ownerId), subtopics: readOwned_('subtopics', false, ownerId), reviewPlans: readOwned_('reviewPlans', false, ownerId), settings: readOwned_('settings', false, ownerId), serverTime: Date.now() };
+  return { profiles: read_('profiles', false), sessions: readOwned_('sessions', false, ownerId), reviews: readOwned_('reviews', false, ownerId), mocks: readOwned_('mocks', false, ownerId), subjects: readOwned_('subjects', false, ownerId), topics: readOwned_('topics', false, ownerId), subtopics: readOwned_('subtopics', false, ownerId), reviewPlans: readOwned_('reviewPlans', false, ownerId), settings: readOwned_('settings', false, ownerId), serverTime: Date.now() };
 }
 
 function sheet_(type) {
@@ -162,6 +163,7 @@ function read_(type, includeDeleted) {
 
 function upsertMany_(type, records, ownerId) {
   if (!records.length) return;
+  const isGlobal = type === 'profiles';
   const normalizedOwnerId = normalizeOwnerId_(ownerId);
   const spec = SHEETS[type];
   const info = headerInfo_(type);
@@ -169,12 +171,12 @@ function upsertMany_(type, records, ownerId) {
   const existing = read_(type, true);
   const byId = {};
   const rawRows = sheet.getLastRow() < 2 ? [] : sheet.getRange(2, 1, sheet.getLastRow() - 1, info.headers.length).getValues();
-  existing.forEach(function(item, index) { byId[recordOwnerId_(item) + '|||' + item.id] = { item: item, row: index + 2, raw: rawRows[index] || [] }; });
+  existing.forEach(function(item, index) { byId[(isGlobal ? '' : recordOwnerId_(item) + '|||') + item.id] = { item: item, row: index + 2, raw: rawRows[index] || [] }; });
   const additions = [];
   records.forEach(function(record) {
     if (!record || !record.id) return;
-    const scopedRecord = Object.assign({}, record, { ownerId: normalizedOwnerId });
-    const found = byId[normalizedOwnerId + '|||' + scopedRecord.id];
+    const scopedRecord = isGlobal ? Object.assign({}, record) : Object.assign({}, record, { ownerId: normalizedOwnerId });
+    const found = byId[(isGlobal ? '' : normalizedOwnerId + '|||') + scopedRecord.id];
     const incomingTime = Number(scopedRecord.deletedAt || scopedRecord.updatedAt || scopedRecord.createdAt || 0);
     const storedTime = found ? Number(found.item.deletedAt || found.item.updatedAt || found.item.createdAt || 0) : -1;
     if (found && incomingTime < storedTime) return;

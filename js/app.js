@@ -20,6 +20,12 @@ const clearHistoryFilters = document.querySelector("#clearHistoryFilters");
 const newStudyButton = document.querySelector("#newStudyButton");
 const profileSwitcher = document.querySelector("#profileSwitcher");
 const profileAvatar = document.querySelector("#profileAvatar");
+const manageProfilesButton = document.querySelector("#manageProfilesButton");
+const profilesModal = document.querySelector("#profilesModal");
+const closeProfilesModalButton = document.querySelector("#closeProfilesModal");
+const doneProfilesButton = document.querySelector("#doneProfilesButton");
+const createProfileForm = document.querySelector("#createProfileForm");
+const profilesList = document.querySelector("#profilesList");
 const saveStudyButton = document.querySelector("#saveStudyButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
 const formHint = document.querySelector("#formHint");
@@ -232,13 +238,51 @@ let exactTimeDate = '';
 let activeChartPeriod = '30';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
-const activeProfile = ProfileStorage.getActiveProfile();
+let activeProfile = ProfileStorage.getActiveProfile();
 
 function renderActiveProfile() {
-  if (profileSwitcher) profileSwitcher.value = activeProfile.id;
+  activeProfile = ProfileStorage.getActiveProfile();
+  if (profileSwitcher) {
+    profileSwitcher.innerHTML = ProfileStorage.list().filter((profile) => !profile.archived).map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)}</option>`).join("");
+    profileSwitcher.value = activeProfile.id;
+  }
   if (profileAvatar) profileAvatar.textContent = activeProfile.initials;
   if (safetyProfileLabel) safetyProfileLabel.textContent = `Perfil ${activeProfile.name}`;
   document.body.dataset.profile = activeProfile.id;
+}
+
+function renderProfilesManager() {
+  if (!profilesList) return;
+  const currentId = ProfileStorage.getActiveId();
+  profilesList.innerHTML = ProfileStorage.list().map((profile) => {
+    const current = profile.id === currentId;
+    return `<article class="profile-row ${profile.archived ? "archived" : ""}" data-profile-id="${escapeHtml(profile.id)}">
+      <span class="profile-row-avatar">${escapeHtml(profile.initials)}</span>
+      <div class="profile-row-main"><input type="text" maxlength="80" value="${escapeHtml(profile.name)}" aria-label="Nome do perfil ${escapeHtml(profile.name)}" data-profile-name /><small>${profile.archived ? "Arquivado — os dados continuam preservados" : current ? "Perfil em uso neste momento" : "Ambiente separado e pronto para uso"}</small></div>
+      <div class="profile-row-actions">
+        <button class="table-button" type="button" data-profile-action="rename">Salvar nome</button>
+        ${profile.archived ? `<button class="table-button" type="button" data-profile-action="restore">Restaurar</button>` : current ? `<span class="badge">Em uso</span>` : `<button class="table-button" type="button" data-profile-action="switch">Usar</button><button class="table-button danger" type="button" data-profile-action="archive">Arquivar</button>`}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function openProfilesManager() {
+  renderProfilesManager();
+  profilesModal?.classList.remove("hidden");
+  window.setTimeout(() => createProfileForm?.elements.name.focus(), 50);
+}
+
+function closeProfilesManager() {
+  profilesModal?.classList.add("hidden");
+  createProfileForm?.reset();
+}
+
+function saveProfilesAndSync(message) {
+  renderActiveProfile();
+  renderProfilesManager();
+  StudySync.run(true);
+  if (message) showToast(message, "success");
 }
 
 function switchProfile(profileId) {
@@ -2678,7 +2722,11 @@ historyBody.addEventListener("click", (event) => {
 menuButton.addEventListener("click", () => setSidebarOpen(!sidebar.classList.contains("open")));
 sidebarCloseButton?.addEventListener("click", () => setSidebarOpen(false));
 sidebarBackdrop?.addEventListener("click", () => setSidebarOpen(false));
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && sidebar.classList.contains("open")) setSidebarOpen(false); });
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (sidebar.classList.contains("open")) setSidebarOpen(false);
+  if (profilesModal && !profilesModal.classList.contains("hidden")) closeProfilesManager();
+});
 window.addEventListener("resize", () => { if (window.innerWidth > 860) setSidebarOpen(false); });
 
 navItems.forEach((item) => {
@@ -2943,6 +2991,34 @@ if (dailyReviewLimitInput) dailyReviewLimitInput.addEventListener("change", save
 if (minimumReviewQuestionsInput) minimumReviewQuestionsInput.addEventListener("change", saveReviewSettings);
 if (minimumReviewAccuracyInput) minimumReviewAccuracyInput.addEventListener("change", saveReviewSettings);
 if (profileSwitcher) profileSwitcher.addEventListener("change", () => switchProfile(profileSwitcher.value));
+manageProfilesButton?.addEventListener("click", openProfilesManager);
+closeProfilesModalButton?.addEventListener("click", closeProfilesManager);
+doneProfilesButton?.addEventListener("click", closeProfilesManager);
+profilesModal?.addEventListener("click", (event) => { if (event.target === profilesModal) closeProfilesManager(); });
+createProfileForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const created = ProfileStorage.create(createProfileForm.elements.name.value, `profile-${createId()}`);
+  if (!created) { showToast("Use um nome diferente para o novo perfil.", "error"); return; }
+  createProfileForm.reset();
+  saveProfilesAndSync("Perfil criado. Ele começa vazio e separado dos demais.");
+});
+profilesList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-profile-action]");
+  const row = button?.closest("[data-profile-id]");
+  if (!button || !row) return;
+  const profileId = row.dataset.profileId;
+  const action = button.dataset.profileAction;
+  if (action === "rename") {
+    if (!ProfileStorage.rename(profileId, row.querySelector("[data-profile-name]").value)) { showToast("Informe um nome válido e que ainda não esteja em uso.", "error"); return; }
+    saveProfilesAndSync("Nome do perfil atualizado sem alterar seus dados.");
+  } else if (action === "archive") {
+    if (!ProfileStorage.setArchived(profileId, true)) { showToast("O perfil em uso ou o único perfil ativo não pode ser arquivado.", "error"); return; }
+    saveProfilesAndSync("Perfil arquivado. Os dados foram preservados.");
+  } else if (action === "restore") {
+    ProfileStorage.setArchived(profileId, false);
+    saveProfilesAndSync("Perfil restaurado.");
+  } else if (action === "switch") switchProfile(profileId);
+});
 postponeReviewForm?.addEventListener("submit", (event) => { event.preventDefault(); savePostponement(postponeReviewForm.elements.reviewKey.value, postponeReviewForm.elements.plannedDate.value); });
 postponeReviewModal?.querySelectorAll("[data-postpone-days]").forEach((button) => button.addEventListener("click", () => savePostponement(postponeReviewForm.elements.reviewKey.value, ReviewPlanner.addDays(toISODate(), Number(button.dataset.postponeDays)))));
 closePostponeReviewButton?.addEventListener("click", closePostponeReview);
@@ -3000,13 +3076,20 @@ cancelAuthModal.addEventListener("click", closeAuthModalNow);
 authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuthModalNow(); });
 
 StudySync.init({
-  getState: () => ({ sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], reviewPlans, settings, meta: syncMeta }),
+  getState: () => ({ profiles: ProfileStorage.list(), sessions, reviews, mocks, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], reviewPlans, settings, meta: syncMeta }),
   markPending: () => {
     syncMeta.pendingChanges = Number(syncMeta.pendingChanges || 0) + 1;
     SyncStorage.save(syncMeta);
     setSyncStatus("pending", `${syncMeta.pendingChanges} alteraç${syncMeta.pendingChanges === 1 ? "ão" : "ões"}`);
   },
   applyState: (state) => {
+    const previousActiveProfileId = ProfileStorage.getActiveId();
+    ProfileStorage.save(state.profiles || ProfileStorage.list());
+    if (ProfileStorage.getActiveId() !== previousActiveProfileId) {
+      window.location.reload();
+      return;
+    }
+    renderActiveProfile();
     sessions = state.sessions;
     reviews = state.reviews;
     mocks = state.mocks || [];

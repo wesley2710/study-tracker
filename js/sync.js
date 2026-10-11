@@ -48,6 +48,7 @@ const StudySync = (() => {
     try {
       const local = adapter.getState();
       const remote = await StudyApi.getAll();
+      const profiles = mergeRecords(local.profiles || [], remote.profiles || [], {});
       const sessions = mergeRecords(normalizeRecordDates(local.sessions), normalizeRecordDates(remote.sessions), local.meta.sessionTombstones);
       const reviews = mergeRecords(normalizeRecordDates(local.reviews), normalizeRecordDates(remote.reviews), local.meta.reviewTombstones);
       const mocks = mergeRecords(normalizeRecordDates(local.mocks), normalizeRecordDates(remote.mocks), local.meta.mockTombstones || {});
@@ -56,10 +57,10 @@ const StudySync = (() => {
       const subtopics = mergeRecords(local.subtopics || [], remote.subtopics || [], local.meta.subtopicTombstones || {});
       const reviewPlans = mergeRecords(local.reviewPlans || [], remote.reviewPlans || [], local.meta.reviewPlanTombstones || {});
       const settings = mergeRecords(local.settings || [], remote.settings || [], local.meta.settingTombstones || {});
-      const result = await StudyApi.sync({ sessions, reviews, mocks, subjects, topics, subtopics, reviewPlans, settings, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {}, subtopicTombstones: local.meta.subtopicTombstones || {}, reviewPlanTombstones: local.meta.reviewPlanTombstones || {}, settingTombstones: local.meta.settingTombstones || {} });
+      const result = await StudyApi.sync({ profiles, sessions, reviews, mocks, subjects, topics, subtopics, reviewPlans, settings, sessionTombstones: local.meta.sessionTombstones, reviewTombstones: local.meta.reviewTombstones, mockTombstones: local.meta.mockTombstones || {}, subjectTombstones: local.meta.subjectTombstones || {}, topicTombstones: local.meta.topicTombstones || {}, subtopicTombstones: local.meta.subtopicTombstones || {}, reviewPlanTombstones: local.meta.reviewPlanTombstones || {}, settingTombstones: local.meta.settingTombstones || {} });
       const nextMeta = { sessionTombstones: {}, reviewTombstones: {}, mockTombstones: {}, subjectTombstones: {}, topicTombstones: {}, subtopicTombstones: {}, reviewPlanTombstones: {}, settingTombstones: {}, lastSyncAt: Date.now(), pendingChanges: 0 };
-      adapter.applyState({ sessions: mergeRecords(sessions, normalizeRecordDates(result.sessions), {}), reviews: mergeRecords(reviews, normalizeRecordDates(result.reviews), {}), mocks: mergeRecords(mocks, normalizeRecordDates(result.mocks), {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), reviewPlans: mergeRecords(reviewPlans, result.reviewPlans || [], {}), settings: mergeRecords(settings, result.settings || [], {}), meta: nextMeta });
-      const total = sessions.length + reviews.length + mocks.length + subjects.length + topics.length + subtopics.length + reviewPlans.length + settings.length;
+      adapter.applyState({ profiles: mergeRecords(profiles, result.profiles || [], {}), sessions: mergeRecords(sessions, normalizeRecordDates(result.sessions), {}), reviews: mergeRecords(reviews, normalizeRecordDates(result.reviews), {}), mocks: mergeRecords(mocks, normalizeRecordDates(result.mocks), {}), subjects: mergeRecords(subjects, result.subjects || [], {}), topics: mergeRecords(topics, result.topics || [], {}), subtopics: mergeRecords(subtopics, result.subtopics || [], {}), reviewPlans: mergeRecords(reviewPlans, result.reviewPlans || [], {}), settings: mergeRecords(settings, result.settings || [], {}), meta: nextMeta });
+      const total = profiles.length + sessions.length + reviews.length + mocks.length + subjects.length + topics.length + subtopics.length + reviewPlans.length + settings.length;
       setStatus("synced", `${new Date(nextMeta.lastSyncAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} • ${total} registros`);
     } catch (error) {
       const authError = ["API_TOKEN_REQUIRED", "UNAUTHORIZED"].some((code) => String(error.message).includes(code));

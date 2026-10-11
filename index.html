@@ -50,7 +50,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.2</p>
+        <p>Versão 2.3</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
@@ -71,11 +71,9 @@
           <button class="secondary-button" id="newStudyButton">+ Novo estudo</button>
           <label class="profile-switcher" title="Trocar usuário">
             <span>Perfil</span>
-            <select id="profileSwitcher" aria-label="Trocar usuário">
-              <option value="wesley">Wesley</option>
-              <option value="eliane">Eliane</option>
-            </select>
+            <select id="profileSwitcher" aria-label="Trocar usuário"><option value="wesley">Wesley</option></select>
           </label>
+          <button class="icon-button profile-manage-button" id="manageProfilesButton" type="button" aria-label="Gerenciar perfis" title="Gerenciar perfis">⚙</button>
           <div class="avatar" id="profileAvatar" aria-hidden="true">WM</div>
         </div>
       </header>
@@ -960,6 +958,22 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="profilesModal">
+    <div class="modal-card profiles-card" role="dialog" aria-modal="true" aria-labelledby="profilesModalTitle">
+      <div class="modal-header">
+        <div><span class="panel-kicker">Ambientes separados</span><h3 id="profilesModalTitle">Gerenciar perfis</h3></div>
+        <button class="icon-button" id="closeProfilesModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <p class="auth-note">Cada perfil possui matérias, estudos, revisões e estatísticas próprias. Renomear um perfil não altera nem apaga seus dados.</p>
+      <form id="createProfileForm" class="profile-create-form">
+        <label><span>Nome do novo perfil</span><input type="text" name="name" maxlength="80" placeholder="Ex.: Wesley – Polícia Federal" required /></label>
+        <button class="primary-button" type="submit">Criar perfil</button>
+      </form>
+      <div class="profiles-list" id="profilesList"></div>
+      <div class="modal-actions"><button class="ghost-button" id="doneProfilesButton" type="button">Concluir</button></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">Pronto.</div>
   <div class="modal-backdrop hidden" id="authModal">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -985,13 +999,13 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.2.0"></script>
-  <script src="js/api.js?v=2.2.0"></script>
-  <script src="js/sync.js?v=2.0.0"></script>
+  <script src="js/storage.js?v=2.3.0"></script>
+  <script src="js/api.js?v=2.3.0"></script>
+  <script src="js/sync.js?v=2.3.0"></script>
   <script src="js/reviews.js?v=2.1.1"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.2.0"></script>
-  <script src="js/app.js?v=2.2.0"></script>
+  <script src="js/safety.js?v=2.3.0"></script>
+  <script src="js/app.js?v=2.3.0"></script>
 </body>
 </html>

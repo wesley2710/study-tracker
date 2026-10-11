@@ -1,8 +1,5 @@
-const STUDY_TRACKER_PROFILES = Object.freeze([
-  Object.freeze({ id: "wesley", name: "Wesley", initials: "WM" }),
-  Object.freeze({ id: "eliane", name: "Eliane", initials: "EL" })
-]);
 const ACTIVE_PROFILE_KEY = "studyTracker.activeProfile.v1";
+const PROFILE_STORAGE_KEY = "studyTracker.profiles.v1";
 const PROFILE_SCOPED_LEGACY_KEYS = [
   "studyTracker.sessions.v1",
   "studyTracker.reviews.v1",
@@ -17,10 +14,32 @@ const PROFILE_SCOPED_LEGACY_KEYS = [
 ];
 
 const ProfileStorage = {
-  list() { return STUDY_TRACKER_PROFILES.map((profile) => ({ ...profile })); },
+  defaultProfile() { return { id: "wesley", name: "Wesley", archived: false, createdAt: 0, updatedAt: 0 }; },
+  initials(name) {
+    const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    return (words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : (words[0] || "P").slice(0, 2)).toUpperCase();
+  },
+  list() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "[]");
+      if (Array.isArray(stored) && stored.length) return stored.filter((profile) => profile?.id && profile?.name).map((profile) => ({ ...profile, archived: Boolean(profile.archived), initials: this.initials(profile.name) }));
+    } catch (error) { console.error("Erro ao carregar perfis:", error); }
+    return [{ ...this.defaultProfile(), initials: "WE" }];
+  },
+  save(profiles) {
+    const valid = (Array.isArray(profiles) ? profiles : []).filter((profile) => profile?.id && String(profile.name || "").trim()).map((profile) => ({ id: String(profile.id), name: String(profile.name).trim().slice(0, 80), archived: Boolean(profile.archived), createdAt: Number(profile.createdAt || 0), updatedAt: Number(profile.updatedAt || 0) }));
+    if (!valid.length) valid.push(this.defaultProfile());
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(valid));
+    return valid;
+  },
+  ensureInitialized() {
+    if (localStorage.getItem(PROFILE_STORAGE_KEY) == null) this.save([this.defaultProfile()]);
+  },
   getActiveId() {
     const stored = String(localStorage.getItem(ACTIVE_PROFILE_KEY) || "").trim().toLowerCase();
-    return STUDY_TRACKER_PROFILES.some((profile) => profile.id === stored) ? stored : "wesley";
+    const profiles = this.list();
+    if (profiles.some((profile) => profile.id === stored && !profile.archived)) return stored;
+    return profiles.find((profile) => !profile.archived)?.id || "wesley";
   },
   getActiveProfile() {
     const activeId = this.getActiveId();
@@ -28,8 +47,33 @@ const ProfileStorage = {
   },
   setActiveId(profileId) {
     const normalized = String(profileId || "").trim().toLowerCase();
-    if (!STUDY_TRACKER_PROFILES.some((profile) => profile.id === normalized)) return false;
+    if (!this.list().some((profile) => profile.id === normalized && !profile.archived)) return false;
     localStorage.setItem(ACTIVE_PROFILE_KEY, normalized);
+    return true;
+  },
+  create(name, id) {
+    const cleanName = String(name || "").trim().slice(0, 80);
+    if (!cleanName) return null;
+    const profiles = this.list();
+    if (profiles.some((profile) => profile.name.toLocaleLowerCase("pt-BR") === cleanName.toLocaleLowerCase("pt-BR") && !profile.archived)) return null;
+    const now = Date.now();
+    const record = { id: String(id || `profile-${now}`).toLowerCase(), name: cleanName, archived: false, createdAt: now, updatedAt: now };
+    this.save([...profiles, record]);
+    return record;
+  },
+  rename(profileId, name) {
+    const cleanName = String(name || "").trim().slice(0, 80);
+    const profiles = this.list();
+    if (!cleanName || profiles.some((profile) => profile.id !== profileId && profile.name.toLocaleLowerCase("pt-BR") === cleanName.toLocaleLowerCase("pt-BR") && !profile.archived)) return false;
+    let changed = false;
+    this.save(profiles.map((profile) => profile.id === profileId ? (changed = true, { ...profile, name: cleanName, updatedAt: Date.now() }) : profile));
+    return changed;
+  },
+  setArchived(profileId, archived) {
+    const profiles = this.list();
+    const target = profiles.find((profile) => profile.id === profileId);
+    if (!target || (archived && profileId === this.getActiveId()) || (archived && profiles.filter((profile) => !profile.archived).length <= 1)) return false;
+    this.save(profiles.map((profile) => profile.id === profileId ? { ...profile, archived: Boolean(archived), updatedAt: Date.now() } : profile));
     return true;
   },
   scopedKey(baseKey, profileId = this.getActiveId()) { return `${baseKey}.${profileId}`; },
@@ -42,6 +86,7 @@ const ProfileStorage = {
   }
 };
 
+ProfileStorage.ensureInitialized();
 ProfileStorage.migrateLegacyData();
 
 const STORAGE_KEY = "studyTracker.sessions.v1";
