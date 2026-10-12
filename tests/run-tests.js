@@ -37,6 +37,23 @@ assert.equal(storageContext.studyStore.load()[0].id, "pf-session", "dados do nov
 assert.equal(storageContext.profiles.setArchived("wesley", true), true, "perfil fora de uso pode ser arquivado");
 assert.equal(storageContext.profiles.setArchived("wesley", false), true, "perfil arquivado pode ser restaurado");
 
+const cycleContext = {};
+vm.createContext(cycleContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/study-cycle.js"), "utf8")}\nthis.cycle = StudyCycleEngine;`, cycleContext);
+const cycleEngine = cycleContext.cycle;
+let cycleRecord = cycleEngine.add({}, "previdenciario", 100);
+cycleRecord = cycleEngine.add(cycleRecord, "portugues", 200);
+cycleRecord = cycleEngine.add(cycleRecord, "previdenciario", 300);
+assert.deepEqual(Array.from(cycleEngine.normalize(cycleRecord).subjectIds), ["previdenciario", "portugues", "previdenciario"], "ciclo permite repetir matérias para definir frequência");
+cycleRecord = cycleEngine.move(cycleRecord, 1, 400);
+assert.equal(cycleEngine.normalize(cycleRecord).currentIndex, 1, "avanço segue para a próxima matéria");
+cycleRecord = cycleEngine.undo(cycleRecord, 500);
+assert.equal(cycleEngine.normalize(cycleRecord).currentIndex, 0, "último avanço pode ser desfeito");
+cycleRecord = cycleEngine.reorder(cycleRecord, 0, 2, 600);
+assert.equal(cycleEngine.normalize(cycleRecord).currentIndex, 2, "reordenação preserva a ocorrência que estava em estudo");
+cycleRecord = cycleEngine.remove(cycleRecord, 2, 700);
+assert.equal(cycleEngine.normalize(cycleRecord).subjectIds.length, 2, "etapas podem ser removidas sem afetar outras matérias");
+
 assert.equal(engine.getInitialInterval(), 3, "primeira revisão é sempre em 3 dias");
 assert.equal(engine.getInitialInterval(92), 3, "estudo com 92% continua agendando a primeira revisão em 3 dias");
 assert.equal(engine.getInitialInterval(100), 3, "estudo com 100% não antecipa a progressão");
@@ -111,6 +128,7 @@ const safetyState = {
   subjects: [{ id: "subject-1", name: "Português", updatedAt: 1 }],
   topics: [{ id: "topic-1", subjectId: "subject-1", name: "Interpretação", updatedAt: 1 }],
   subtopics: [{ id: "subtopic-1", topicId: "topic-1", name: "Inferência", updatedAt: 1 }],
+  settings: [{ id: "study-cycle", studyCycleSubjectIds: '["subject-1"]', studyCycleCurrentIndex: 0, updatedAt: 1 }],
   meta: { sessionTombstones: {}, reviewTombstones: {} }
 };
 const completeBackup = safety.createBackup(safetyState, [{ id: "audit-1", label: "Teste" }], 1000);
@@ -266,7 +284,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.3\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.5\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -277,8 +295,8 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.4\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.4\.0/, "aplicativo inclui perfis gerenciáveis");
+assert.match(htmlText, /js\/storage\.js\?v=2\.5\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.5\.0/, "aplicativo inclui o ciclo de estudos");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
 assert.match(htmlText, /id="createProfileForm"[\s\S]*id="profilesList"/, "modal permite criar e editar perfis pelo site");
 assert.doesNotMatch(htmlText, /value="eliane"/, "Eliane não é criada automaticamente");
@@ -294,7 +312,13 @@ assert.match(backendText, /function getAll_\(ownerId\)[\s\S]*readOwned_\('sessio
 assert.match(backendText, /profiles: read_\('profiles', false\)/, "lista de perfis é compartilhada entre dispositivos");
 assert.match(backendText, /recordOwnerId_\(item\) \+ '\|\|\|'\) \+ item\.id/, "backend separa IDs iguais pertencentes a perfis diferentes");
 assert.match(backendText, /'minimumAccuracy'/, "configuração percentual também é sincronizada na planilha");
+assert.match(backendText, /'studyCycleSubjectIds'.*'studyCycleCurrentIndex'.*'studyCyclePreviousIndex'/, "ciclo de estudos é sincronizado na coleção de configurações");
 assert.match(htmlText, /id="minimumReviewQuestions"[\s\S]*id="minimumReviewAccuracy"/, "percentual para avançar aparece ao lado da quantidade de questões");
+assert.match(htmlText, /id="todayCycleCard"[\s\S]*id="todayCycleStudy"[\s\S]*id="todayCycleAdvance"/, "Hoje mostra a matéria atual e oferece avanço manual");
+assert.match(htmlText, /id="ciclo-estudos"[\s\S]*id="studyCycleAddForm"[\s\S]*id="studyCycleList"/, "cadastro possui caixa própria para organizar o ciclo");
+assert.match(htmlText, /name="advanceStudyCycle"/, "registro permite decidir se a matéria atual deve avançar");
+assert.match(appText, /shouldAdvanceCycle[\s\S]*moveStudyCycle\(1, "automatic"/, "somente a caixa marcada avança o ciclo ao salvar");
+assert.match(appText, /data\.activityType === "study"/, "revisões não avançam o ciclo de matérias");
 assert.equal((appText.match(/const reviewSettings = getReviewSettings\(\);\s*const projectedStreak = percentage >= reviewSettings\.minimumAccuracy/g) || []).length, 2, "formulário lê a meta configurada antes de calcular a próxima revisão");
 assert.match(htmlText, /id="catalogConsolidateModal"/, "catálogo possui confirmação detalhada para consolidar subtemas");
 assert.match(htmlText, /data-section="dashboard"[\s\S]*data-section="registrar"[\s\S]*data-section="revisoes"[\s\S]*data-section="desempenho"[\s\S]*data-section="historico"[\s\S]*data-section="simulados"[\s\S]*data-section="catalogo"[\s\S]*data-section="seguranca-dados"/, "menu lateral segue a ordem definida");
@@ -353,4 +377,4 @@ assert.match(appSource, /allowsNoQuestions = data\.activityType === "study" && d
 assert.match(appSource, /data\.questions === 0 && data\.correct !== 0/, "sessão sem questões não aceita acertos positivos");
 assert.match(appSource, /Number\.isFinite\(item\.percentage\) \? formatPercent\(item\.percentage\) : "—"/, "assunto sem questões exibe traço em vez de 0%");
 
-console.log("OK: verificações de revisão, segurança, backup, sincronização, fila, desempenho, merge, catálogo e renderização.");
+console.log("OK: verificações de revisão, ciclo, segurança, backup, sincronização, fila, desempenho, merge, catálogo e renderização.");

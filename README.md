@@ -99,6 +99,12 @@ O botão de tema no cabeçalho alterna entre modo escuro e modo claro. A prefer�
 
 O histórico local registra criações, renomeações, mesclagens, arquivamentos, restaurações e exclusões. O indicador de sincronização informa o horário da última conclusão, a quantidade total de registros, alterações pendentes e eventuais erros. Os textos da interface seguem a hierarquia **Matéria → Tema → Subtema**.
 
+## V2.5 — Ciclo de estudos por matéria
+
+O cadastro ganhou um ciclo ordenado que utiliza somente as matérias já existentes. A mesma matéria pode ser repetida para aumentar sua frequência, e a posição atual é separada por perfil e sincronizada entre dispositivos.
+
+Na tela Hoje, o ciclo mostra a matéria atual e a próxima etapa. O botão de estudo abre o registro com a matéria preenchida, enquanto tema e subtema continuam livres. Ao salvar uma sessão normal da matéria atual, uma caixa opcional permite avançar; se permanecer desmarcada, o ciclo continua na mesma matéria. Também há avanço manual, retorno, reinício e desfazer do último movimento.
+
 ## V1.9 — Hoje e melhorias de usabilidade
 
 A nova tela inicial **Hoje** reúne tempo estudado e progresso da meta diária, revisões atrasadas, revisões programadas para o dia e a próxima sugestão de estudo. Atalhos permitem iniciar ou continuar o cronômetro e abrir o formulário de registro já no assunto sugerido.

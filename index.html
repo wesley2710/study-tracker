@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("studyTracker.theme.v1")==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-  <link rel="stylesheet" href="css/style.css?v=2.4.1" />
+  <link rel="stylesheet" href="css/style.css?v=2.5.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -51,7 +51,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.4</p>
+        <p>Versão 2.5</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
@@ -116,6 +116,17 @@
             </article>
           </div>
           <div class="today-focus-grid">
+            <article class="today-focus-card today-cycle-card" id="todayCycleCard">
+              <div class="today-cycle-heading"><div><span class="panel-kicker">Ciclo de estudos</span><strong id="todayCycleTitle">Ciclo não configurado</strong></div><span class="counter" id="todayCyclePosition">—</span></div>
+              <small id="todayCycleNext">Cadastre a sequência das matérias para começar.</small>
+              <p id="todayCycleNote">O ciclo avança somente quando você decidir.</p>
+              <div class="today-cycle-actions">
+                <button class="secondary-button" id="todayCycleStudy" type="button" disabled>Estudar esta matéria</button>
+                <button class="ghost-button" id="todayCycleAdvance" type="button" disabled>Avançar manualmente</button>
+                <button class="text-button hidden" id="todayCycleUndo" type="button">Desfazer avanço</button>
+                <button class="text-button" id="todayCycleConfigure" type="button">Configurar ciclo</button>
+              </div>
+            </article>
             <article class="today-focus-card">
               <span class="panel-kicker">Próximo assunto sugerido</span>
               <strong id="todaySuggestionTitle">Aguardando seus dados</strong>
@@ -322,6 +333,10 @@
                   <strong id="accuracyPreview">0%</strong>
                   <small id="formHint">Preencha os dados da sessão.</small>
                 </div>
+                <label class="study-cycle-advance hidden" id="studyCycleAdvanceField">
+                  <input type="checkbox" name="advanceStudyCycle" />
+                  <span><strong id="studyCycleAdvanceTitle">Concluir matéria no ciclo</strong><small id="studyCycleAdvanceNote">A próxima matéria será exibida após salvar.</small></span>
+                </label>
                 <div class="form-actions">
                   <button class="ghost-button hidden" id="cancelEditButton" type="button">Cancelar edição</button>
                   <button class="primary-button" id="saveStudyButton" type="submit">Salvar sessão</button>
@@ -683,6 +698,32 @@
           </div>
         </section>
 
+        <section class="panel study-cycle-panel page-view" id="ciclo-estudos" data-page="catalogo" hidden>
+          <div class="panel-header study-cycle-header">
+            <div>
+              <span class="panel-kicker">Planejamento</span>
+              <h3>Ciclo de Estudos</h3>
+              <small>Organize apenas as matérias. Uma matéria pode aparecer mais de uma vez para receber mais prioridade.</small>
+            </div>
+            <label class="study-cycle-toggle"><input id="studyCycleActive" type="checkbox" /><span>Ciclo ativo</span></label>
+          </div>
+          <div class="study-cycle-summary">
+            <div><span>Matéria atual</span><strong id="studyCycleCurrent">Ciclo não configurado</strong><small id="studyCycleCatalogNext">Adicione matérias para montar sua sequência.</small></div>
+            <span class="badge" id="studyCycleCatalogPosition">0 etapas</span>
+          </div>
+          <form class="study-cycle-add" id="studyCycleAddForm">
+            <select id="studyCycleSubjectSelect" required><option value="">Selecione uma matéria</option></select>
+            <button class="primary-button" type="submit">+ Adicionar ao ciclo</button>
+          </form>
+          <div class="study-cycle-list" id="studyCycleList"></div>
+          <div class="study-cycle-controls">
+            <button class="ghost-button" id="studyCycleBack" type="button" disabled>← Voltar</button>
+            <button class="ghost-button" id="studyCycleAdvance" type="button" disabled>Avançar manualmente →</button>
+            <button class="text-button hidden" id="studyCycleUndo" type="button">Desfazer último avanço</button>
+            <button class="text-button" id="studyCycleReset" type="button" disabled>Reiniciar no começo</button>
+          </div>
+        </section>
+
         <section class="panel catalog-panel page-view" id="catalogo" data-page="catalogo" hidden>
           <div class="panel-header">
             <div>
@@ -1000,13 +1041,14 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.4.0"></script>
-  <script src="js/api.js?v=2.3.0"></script>
-  <script src="js/sync.js?v=2.3.0"></script>
+  <script src="js/storage.js?v=2.5.0"></script>
+  <script src="js/api.js?v=2.5.0"></script>
+  <script src="js/sync.js?v=2.5.0"></script>
   <script src="js/reviews.js?v=2.1.1"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.3.0"></script>
-  <script src="js/app.js?v=2.4.0"></script>
+  <script src="js/safety.js?v=2.5.0"></script>
+  <script src="js/study-cycle.js?v=2.5.0"></script>
+  <script src="js/app.js?v=2.5.0"></script>
 </body>
 </html>

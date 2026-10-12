@@ -16,7 +16,7 @@ const SHEETS = {
   topics: { name: 'Topics', headers: ['id', 'subjectId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
   subtopics: { name: 'Subtopics', headers: ['id', 'topicId', 'name', 'archived', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
   reviewPlans: { name: 'ReviewPlans', headers: ['id', 'reviewKey', 'originalDueDate', 'plannedDate', 'reason', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] },
-  settings: { name: 'Settings', headers: ['id', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] }
+  settings: { name: 'Settings', headers: ['id', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy', 'studyCycleSubjectIds', 'studyCycleCurrentIndex', 'studyCyclePreviousIndex', 'studyCycleActive', 'studyCycleLastAdvancedAt', 'createdAt', 'updatedAt', 'deletedAt', 'ownerId'] }
 };
 
 const DEFAULT_OWNER_ID = 'wesley';
@@ -153,7 +153,7 @@ function read_(type, includeDeleted) {
     .map(function(row) {
       const item = {};
       spec.headers.forEach(function(header) { item[header] = info.index[header] == null ? '' : row[info.index[header]]; });
-      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy'].forEach(function(key) {
+      ['questions', 'correct', 'durationSeconds', 'createdAt', 'updatedAt', 'deletedAt', 'previousInterval', 'nextInterval', 'overallScore', 'overallMaxScore', 'dailyReviewLimit', 'minimumQuestions', 'minimumAccuracy', 'studyCycleCurrentIndex', 'studyCyclePreviousIndex', 'studyCycleLastAdvancedAt'].forEach(function(key) {
         if (item[key] !== '') item[key] = Number(item[key]);
       });
       return item;

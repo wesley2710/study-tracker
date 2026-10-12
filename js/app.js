@@ -112,6 +112,28 @@ const todaySuggestionReason = document.querySelector("#todaySuggestionReason");
 const todayStudySuggestionButton = document.querySelector("#todayStudySuggestion");
 const todayAgendaCount = document.querySelector("#todayAgendaCount");
 const todayAgendaList = document.querySelector("#todayAgendaList");
+const todayCycleTitle = document.querySelector("#todayCycleTitle");
+const todayCyclePosition = document.querySelector("#todayCyclePosition");
+const todayCycleNext = document.querySelector("#todayCycleNext");
+const todayCycleNote = document.querySelector("#todayCycleNote");
+const todayCycleStudyButton = document.querySelector("#todayCycleStudy");
+const todayCycleAdvanceButton = document.querySelector("#todayCycleAdvance");
+const todayCycleUndoButton = document.querySelector("#todayCycleUndo");
+const todayCycleConfigureButton = document.querySelector("#todayCycleConfigure");
+const studyCycleActiveInput = document.querySelector("#studyCycleActive");
+const studyCycleCurrent = document.querySelector("#studyCycleCurrent");
+const studyCycleCatalogNext = document.querySelector("#studyCycleCatalogNext");
+const studyCycleCatalogPosition = document.querySelector("#studyCycleCatalogPosition");
+const studyCycleAddForm = document.querySelector("#studyCycleAddForm");
+const studyCycleSubjectSelect = document.querySelector("#studyCycleSubjectSelect");
+const studyCycleList = document.querySelector("#studyCycleList");
+const studyCycleBackButton = document.querySelector("#studyCycleBack");
+const studyCycleAdvanceButton = document.querySelector("#studyCycleAdvance");
+const studyCycleUndoButton = document.querySelector("#studyCycleUndo");
+const studyCycleResetButton = document.querySelector("#studyCycleReset");
+const studyCycleAdvanceField = document.querySelector("#studyCycleAdvanceField");
+const studyCycleAdvanceTitle = document.querySelector("#studyCycleAdvanceTitle");
+const studyCycleAdvanceNote = document.querySelector("#studyCycleAdvanceNote");
 
 const totalQuestionsEl = document.querySelector("#totalQuestions");
 const overallAccuracyEl = document.querySelector("#overallAccuracy");
@@ -336,6 +358,141 @@ function saveReviewSettings() {
   renderAll();
   StudySync.run(true);
   showToast("Configurações de revisão salvas.", "success");
+}
+
+function getStudyCycleRecord() {
+  return settings.find((item) => item.id === "study-cycle") || null;
+}
+
+function getStudyCycle() {
+  return StudyCycleEngine.normalize(getStudyCycleRecord() || {});
+}
+
+function getStudyCycleSubject(cycle = getStudyCycle(), index = cycle.currentIndex) {
+  const subjectId = index >= 0 ? cycle.subjectIds[index] : "";
+  return catalog.subjects.find((item) => item.id === subjectId) || null;
+}
+
+function replaceStudyCycleRecord(record) {
+  settings = settings.some((item) => item.id === "study-cycle")
+    ? settings.map((item) => item.id === "study-cycle" ? record : item)
+    : [...settings, record];
+  SettingsStorage.save(settings);
+}
+
+function commitStudyCycle(record, { message = "", auditLabel = "", auditDetail = "", sync = true, render = true } = {}) {
+  replaceStudyCycleRecord(record);
+  if (auditLabel) addAuditEntry("cycle", auditLabel, auditDetail);
+  if (render) renderAll();
+  if (sync) StudySync.run(true);
+  if (message) showToast(message, "success");
+}
+
+function moveStudyCycle(direction, source = "manual", options = {}) {
+  const cycle = getStudyCycle();
+  if (!cycle.active || !cycle.subjectIds.length) return false;
+  const previous = getStudyCycleSubject(cycle);
+  const record = StudyCycleEngine.move(getStudyCycleRecord() || {}, direction, Date.now());
+  const nextCycle = StudyCycleEngine.normalize(record);
+  const current = getStudyCycleSubject(nextCycle);
+  const verb = direction < 0 ? "voltou" : "avançou";
+  commitStudyCycle(record, {
+    message: options.message === false ? "" : `Ciclo ${verb} para ${current?.name || "a próxima etapa"}.`,
+    auditLabel: `Ciclo ${verb}: ${current?.name || "etapa indisponível"}`,
+    auditDetail: `${source === "automatic" ? "Avanço ao salvar estudo" : "Alteração manual"}${previous ? ` • antes: ${previous.name}` : ""}`,
+    sync: options.sync !== false,
+    render: options.render !== false
+  });
+  return true;
+}
+
+function undoStudyCycleMove() {
+  const cycle = getStudyCycle();
+  if (cycle.previousIndex < 0) return;
+  const record = StudyCycleEngine.undo(getStudyCycleRecord() || {}, Date.now());
+  const restored = getStudyCycleSubject(StudyCycleEngine.normalize(record));
+  commitStudyCycle(record, {
+    message: `Avanço desfeito. O ciclo voltou para ${restored?.name || "a etapa anterior"}.`,
+    auditLabel: `Avanço do ciclo desfeito`,
+    auditDetail: restored ? `Matéria atual: ${restored.name}` : "Etapa anterior restaurada"
+  });
+}
+
+function renderStudyCycle() {
+  if (!studyCycleList || !todayCycleTitle) return;
+  const record = getStudyCycleRecord() || {};
+  const cycle = StudyCycleEngine.normalize(record);
+  const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const current = getStudyCycleSubject(cycle);
+  const nextIndex = cycle.subjectIds.length ? (cycle.currentIndex + 1) % cycle.subjectIds.length : -1;
+  const next = getStudyCycleSubject(cycle, nextIndex);
+  const currentAvailable = Boolean(current && !current.archived);
+  const hasCycle = cycle.subjectIds.length > 0;
+  const positionLabel = hasCycle ? `${cycle.currentIndex + 1} de ${cycle.subjectIds.length}` : "—";
+
+  studyCycleSubjectSelect.innerHTML = `<option value="">Selecione uma matéria</option>${activeSubjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
+  studyCycleSubjectSelect.disabled = !activeSubjects.length;
+  studyCycleAddForm.querySelector('button[type="submit"]').disabled = !activeSubjects.length;
+  studyCycleActiveInput.checked = cycle.active;
+  studyCycleActiveInput.disabled = !hasCycle;
+  studyCycleCurrent.textContent = hasCycle ? (currentAvailable ? current.name : "Matéria arquivada ou indisponível") : "Ciclo não configurado";
+  studyCycleCatalogPosition.textContent = hasCycle ? `${cycle.subjectIds.length} ${cycle.subjectIds.length === 1 ? "etapa" : "etapas"}` : "0 etapas";
+  studyCycleCatalogNext.textContent = !hasCycle
+    ? "Adicione matérias para montar sua sequência."
+    : !cycle.active
+      ? `Ciclo pausado na etapa ${positionLabel}.`
+      : `Etapa ${positionLabel} • próxima: ${next?.name || "matéria indisponível"}.`;
+
+  studyCycleList.innerHTML = hasCycle ? cycle.subjectIds.map((subjectId, index) => {
+    const subject = catalog.subjects.find((item) => item.id === subjectId);
+    const available = subject && !subject.archived;
+    return `<div class="study-cycle-row ${index === cycle.currentIndex ? "current" : ""}" data-cycle-index="${index}">
+      <span class="study-cycle-order">${index + 1}</span>
+      <div class="study-cycle-copy"><strong>${escapeHtml(available ? subject.name : "Matéria arquivada ou indisponível")}</strong><small>${index === cycle.currentIndex ? "Etapa atual" : "Etapa do ciclo"}${available ? "" : " • ajuste recomendado"}</small></div>
+      <div class="study-cycle-row-actions">
+        <button class="table-button" type="button" data-cycle-action="up" ${index === 0 ? "disabled" : ""} aria-label="Mover etapa para cima">↑</button>
+        <button class="table-button" type="button" data-cycle-action="down" ${index === cycle.subjectIds.length - 1 ? "disabled" : ""} aria-label="Mover etapa para baixo">↓</button>
+        <button class="table-button danger" type="button" data-cycle-action="remove">Remover</button>
+      </div>
+    </div>`;
+  }).join("") : `<div class="empty-state compact"><strong>Nenhuma matéria no ciclo</strong><span>Selecione uma matéria acima. Você pode repetir matérias para aumentar a frequência.</span></div>`;
+
+  studyCycleBackButton.disabled = !cycle.active || !hasCycle;
+  studyCycleAdvanceButton.disabled = !cycle.active || !hasCycle;
+  studyCycleResetButton.disabled = !hasCycle || cycle.currentIndex === 0;
+  studyCycleUndoButton.classList.toggle("hidden", cycle.previousIndex < 0);
+
+  todayCycleTitle.textContent = !hasCycle ? "Ciclo não configurado" : currentAvailable ? current.name : "Matéria indisponível";
+  todayCyclePosition.textContent = positionLabel;
+  todayCycleNext.textContent = !hasCycle
+    ? "Cadastre a sequência das matérias para começar."
+    : cycle.active
+      ? `Próxima: ${next?.name || "matéria indisponível"}.`
+      : "O ciclo está pausado. Ative-o na organização das matérias.";
+  todayCycleNote.textContent = !hasCycle
+    ? "O ciclo controlará somente matérias, sem alterar temas ou subtemas."
+    : currentAvailable
+      ? "Faça quantos temas precisar e avance somente ao concluir esta matéria."
+      : "Avance manualmente ou ajuste o ciclo para continuar.";
+  todayCycleStudyButton.disabled = !cycle.active || !currentAvailable;
+  todayCycleAdvanceButton.disabled = !cycle.active || !hasCycle;
+  todayCycleUndoButton.classList.toggle("hidden", cycle.previousIndex < 0);
+  syncStudyCycleAdvanceField();
+}
+
+function syncStudyCycleAdvanceField() {
+  if (!studyCycleAdvanceField) return;
+  const cycle = getStudyCycle();
+  const current = getStudyCycleSubject(cycle);
+  const isStudy = studyForm.elements.activityType.value === "study";
+  const matchesCurrent = current && !current.archived && subjectInput.value === current.id;
+  const visible = !editingId && cycle.active && isStudy && matchesCurrent;
+  studyCycleAdvanceField.classList.toggle("hidden", !visible);
+  if (!visible) studyForm.elements.advanceStudyCycle.checked = false;
+  if (!visible) return;
+  const next = getStudyCycleSubject(cycle, (cycle.currentIndex + 1) % cycle.subjectIds.length);
+  studyCycleAdvanceTitle.textContent = `Concluir ${current.name} no ciclo`;
+  studyCycleAdvanceNote.textContent = `Ao salvar, o ciclo avançará para ${next?.name || "a próxima etapa"}. Deixe desmarcado para continuar em ${current.name}.`;
 }
 
 function migrateLegacyCatalogState() {
@@ -866,6 +1023,7 @@ function renderDatalists(selectedSubjectId = null, selectedTopicId = null, selec
     subtopicInput.innerHTML = topicId ? `<option value="">Sem subtema</option>${activeSubtopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro o tema</option>`;
     if (activeSubtopics.some((item) => item.id === currentSubtopic)) subtopicInput.value = currentSubtopic;
   }
+  syncStudyCycleAdvanceField();
 }
 
 
@@ -1145,7 +1303,7 @@ function openStudyRegistration(item = null, startClock = false) {
   }
   activateSection("registrar");
   if (startClock && !activeTimer?.running) activeTimer ? resumeTimer() : startTimer();
-  window.setTimeout(() => (item ? studyForm.elements.questions : studyForm.elements.subject).focus(), 350);
+  window.setTimeout(() => (item?.topicId ? studyForm.elements.questions : item?.subjectId ? studyForm.elements.topic : studyForm.elements.subject).focus(), 350);
 }
 
 function renderTodayDashboard() {
@@ -2034,6 +2192,7 @@ function syncQuestionContextMode() {
   questionContextEl.disabled = isReview;
   reviewOutcomeField?.classList.toggle("hidden", !isReview);
   if (!isReview && studyForm.elements.reviewOutcome) studyForm.elements.reviewOutcome.value = "complete";
+  syncStudyCycleAdvanceField();
 }
 
 function normalizeSubjectScores(value) {
@@ -2541,6 +2700,7 @@ function renderAll() {
   renderCatalog();
   renderDatalists();
   renderSafetyCenter();
+  renderStudyCycle();
   renderTodayDashboard();
 }
 
@@ -2555,6 +2715,7 @@ function resetForm() {
   formHint.textContent = "Preencha os dados da sessão.";
   syncQuestionContextMode();
   renderDatalists();
+  syncStudyCycleAdvanceField();
 }
 
 function startScheduledReview(reviewKey) {
@@ -2704,6 +2865,14 @@ studyForm.addEventListener("submit", (event) => {
     return;
   }
 
+  const cycle = getStudyCycle();
+  const cycleSubject = getStudyCycleSubject(cycle);
+  const shouldAdvanceCycle = !editingId
+    && data.activityType === "study"
+    && Boolean(studyForm.elements.advanceStudyCycle?.checked)
+    && cycle.active
+    && cycleSubject?.id === data.subjectId;
+
   if (editingId) {
     sessions = sessions.map((session) => {
       if (session.id !== editingId) return session;
@@ -2725,6 +2894,12 @@ studyForm.addEventListener("submit", (event) => {
     });
     syncReviewRecordForSession(sessions[sessions.length - 1]);
     showToast(data.reviewOutcome === "partial" ? "Revisão parcial salva; horas e questões registradas sem avançar o intervalo." : "Sessão salva no navegador.", "success");
+  }
+
+  if (shouldAdvanceCycle) {
+    moveStudyCycle(1, "automatic", { sync: false, render: false, message: false });
+    const nextSubject = getStudyCycleSubject(getStudyCycle());
+    showToast(`Sessão salva. O ciclo avançou para ${nextSubject?.name || "a próxima etapa"}.`, "success");
   }
 
   StudyStorage.save(sessions);
@@ -2781,6 +2956,17 @@ if (clearHistoryFilters) clearHistoryFilters.addEventListener("click", () => {
 if (todayRegisterStudyButton) todayRegisterStudyButton.addEventListener("click", () => openStudyRegistration());
 if (todayStartTimerButton) todayStartTimerButton.addEventListener("click", () => openStudyRegistration(null, true));
 if (todayStudySuggestionButton) todayStudySuggestionButton.addEventListener("click", () => openStudyRegistration(suggestedStudyItem));
+if (todayCycleStudyButton) todayCycleStudyButton.addEventListener("click", () => {
+  const cycle = getStudyCycle();
+  const subject = getStudyCycleSubject(cycle);
+  if (cycle.active && subject && !subject.archived) openStudyRegistration({ subjectId: subject.id, subject: subject.name });
+});
+if (todayCycleAdvanceButton) todayCycleAdvanceButton.addEventListener("click", () => moveStudyCycle(1, "manual"));
+if (todayCycleUndoButton) todayCycleUndoButton.addEventListener("click", undoStudyCycleMove);
+if (todayCycleConfigureButton) todayCycleConfigureButton.addEventListener("click", () => {
+  activateSection("catalogo");
+  window.setTimeout(() => document.querySelector("#ciclo-estudos")?.scrollIntoView({ behavior:"smooth", block:"start" }), 80);
+});
 if (dailyGoalMinutesInput) dailyGoalMinutesInput.addEventListener("change", () => {
   uiPreferences.dailyGoalMinutes = Math.max(15, Math.min(1440, Number(dailyGoalMinutesInput.value || 120)));
   saveUiPreferences();
@@ -2809,6 +2995,48 @@ if (mockForm) {
 }
 
 if (subjectCatalogForm) subjectCatalogForm.addEventListener("submit", (event) => { event.preventDefault(); const name=normalizeCatalogName(subjectCatalogForm.elements.name.value); if(!name)return; if(catalogNameExists(catalog.subjects,name)){showToast("Essa matéria já está cadastrada.","error");return;} if(!captureUndo(`Criação de matéria: ${name}`))return; const now=Date.now(); catalog.subjects.push({id:createId(),name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Matéria criada: ${name}`); subjectCatalogForm.reset(); saveCatalogAndRefresh("Matéria adicionada."); });
+if (studyCycleAddForm) studyCycleAddForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const subjectId = studyCycleSubjectSelect.value;
+  const subject = catalog.subjects.find((item) => item.id === subjectId && !item.archived);
+  if (!subject) { showToast("Selecione uma matéria válida.", "error"); return; }
+  if (!captureUndo(`Inclusão de ${subject.name} no ciclo`)) return;
+  const record = StudyCycleEngine.add(getStudyCycleRecord() || {}, subjectId, Date.now());
+  studyCycleAddForm.reset();
+  commitStudyCycle(record, { message:`${subject.name} adicionada ao ciclo.`, auditLabel:`Matéria adicionada ao ciclo: ${subject.name}` });
+});
+if (studyCycleActiveInput) studyCycleActiveInput.addEventListener("change", () => {
+  const record = StudyCycleEngine.setActive(getStudyCycleRecord() || {}, studyCycleActiveInput.checked, Date.now());
+  commitStudyCycle(record, {
+    message: studyCycleActiveInput.checked ? "Ciclo de estudos ativado." : "Ciclo de estudos pausado.",
+    auditLabel: studyCycleActiveInput.checked ? "Ciclo de estudos ativado" : "Ciclo de estudos pausado"
+  });
+});
+if (studyCycleList) studyCycleList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-cycle-action]");
+  const row = button?.closest("[data-cycle-index]");
+  if (!button || !row) return;
+  const index = Number(row.dataset.cycleIndex);
+  const cycle = getStudyCycle();
+  const subject = getStudyCycleSubject(cycle, index);
+  const action = button.dataset.cycleAction;
+  if (!captureUndo(`${action === "remove" ? "Remoção" : "Reordenação"} no ciclo de estudos`)) return;
+  const record = action === "remove"
+    ? StudyCycleEngine.remove(getStudyCycleRecord() || {}, index, Date.now())
+    : StudyCycleEngine.reorder(getStudyCycleRecord() || {}, index, action === "up" ? index - 1 : index + 1, Date.now());
+  commitStudyCycle(record, {
+    message: action === "remove" ? "Etapa removida do ciclo." : "Ordem do ciclo atualizada.",
+    auditLabel: action === "remove" ? `Etapa removida do ciclo: ${subject?.name || "matéria indisponível"}` : "Ordem do ciclo alterada"
+  });
+});
+if (studyCycleBackButton) studyCycleBackButton.addEventListener("click", () => moveStudyCycle(-1, "manual"));
+if (studyCycleAdvanceButton) studyCycleAdvanceButton.addEventListener("click", () => moveStudyCycle(1, "manual"));
+if (studyCycleUndoButton) studyCycleUndoButton.addEventListener("click", undoStudyCycleMove);
+if (studyCycleResetButton) studyCycleResetButton.addEventListener("click", () => {
+  const record = StudyCycleEngine.reset(getStudyCycleRecord() || {}, Date.now());
+  const first = getStudyCycleSubject(StudyCycleEngine.normalize(record));
+  commitStudyCycle(record, { message:`Ciclo reiniciado em ${first?.name || "sua primeira etapa"}.`, auditLabel:"Ciclo reiniciado" });
+});
 if (catalogSearch) catalogSearch.addEventListener("input", renderCatalog);
 if (archiveSelectedTopicsButton) archiveSelectedTopicsButton.addEventListener("click", archiveSelectedTopics);
 if (mergeSelectedTopicsButton) mergeSelectedTopicsButton.addEventListener("click", mergeSelectedTopics);
