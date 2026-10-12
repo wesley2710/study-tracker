@@ -105,6 +105,10 @@ O cadastro ganhou um ciclo ordenado que utiliza somente as matérias já existen
 
 Na tela Hoje, o ciclo mostra a matéria atual e a próxima etapa. O botão de estudo abre o registro com a matéria preenchida, enquanto tema e subtema continuam livres. Ao salvar uma sessão normal da matéria atual, uma caixa opcional permite avançar; se permanecer desmarcada, o ciclo continua na mesma matéria. Também há avanço manual, retorno, reinício e desfazer do último movimento.
 
+## V2.6 — Sincronização em segundo plano
+
+As alterações são salvas imediatamente no navegador e agrupadas por alguns instantes antes do envio ao Google Sheets. A interface continua disponível durante a sincronização, mudanças feitas enquanto um envio está em andamento são preservadas para o lote seguinte e o retorno do servidor é combinado com o estado local mais recente. O fluxo também elimina a consulta completa que antes acontecia antes de cada envio, reduzindo o tempo de sincronização sem alterar os dados existentes.
+
 ## V1.9 — Hoje e melhorias de usabilidade
 
 A nova tela inicial **Hoje** reúne tempo estudado e progresso da meta diária, revisões atrasadas, revisões programadas para o dia e a próxima sugestão de estudo. Atalhos permitem iniciar ou continuar o cronômetro e abrir o formulário de registro já no assunto sugerido.

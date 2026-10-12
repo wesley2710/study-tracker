@@ -3300,7 +3300,7 @@ reviewModal.addEventListener("click", (event) => {
 });
 
 function setSyncStatus(state, detail = "") {
-  const labels = { local: "Somente local", locked: "Configurar acesso", pending: "Alterações pendentes", syncing: "Sincronizando...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
+  const labels = { local: "Somente local", locked: "Configurar acesso", pending: "Alterações pendentes", syncing: "Sincronizando em segundo plano...", synced: "Sincronizado", offline: "Offline", error: "Erro de sincronização" };
   syncStatus.className = `sync-status ${state}`;
   syncStatusText.textContent = detail && ["synced", "pending", "offline", "error", "local", "locked"].includes(state) ? `${labels[state]} • ${detail}` : labels[state] || labels.local;
   syncStatus.title = detail ? `${labels[state]} — ${detail}` : labels[state];

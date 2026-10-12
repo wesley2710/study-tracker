@@ -116,6 +116,18 @@ assert.equal(merge([{ id: "a", updatedAt: 2 }], [], { a: 3 }).length, 0, "tombst
 assert.equal(merge([{ id: "a", updatedAt: 4 }], [], { a: 3 }).length, 1, "edição mais nova vence tombstone antigo");
 assert.equal(merge([{ id: "same", updatedAt: 1 }], [{ id: "same", updatedAt: 1 }], {}).length, 1, "id não duplica");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /!StudyApi\.hasToken\(\).*setStatus\("locked"/, "segredo ausente não gera tentativa nem erro de console");
+const syncSource = fs.readFileSync(path.join(root, "js/sync.js"), "utf8");
+assert.match(syncSource, /SYNC_DEBOUNCE_MS = 900/, "alterações próximas são agrupadas antes do envio");
+assert.doesNotMatch(syncSource, /await StudyApi\.getAll\(\)/, "sincronização não consulta todos os dados antes de cada envio");
+assert.match(syncSource, /const latest = adapter\.getState\(\)/, "resposta remota é combinada com o estado local mais recente");
+assert.match(syncSource, /localRevision !== revisionAtStart/, "mudanças durante um envio disparam automaticamente o lote seguinte");
+const metaAfterConcurrentChange = syncContext.sync.nextSyncMeta(
+  { pendingChanges: 3, sessionTombstones: { old: 10, new: 30 } },
+  { pendingChanges: 2, sessionTombstones: { old: 10 } },
+  100
+);
+assert.equal(metaAfterConcurrentChange.pendingChanges, 1, "somente mudanças posteriores ao envio continuam pendentes");
+assert.deepEqual(JSON.parse(JSON.stringify(metaAfterConcurrentChange.sessionTombstones)), { new: 30 }, "exclusão criada durante o envio permanece para o próximo lote");
 
 const safetyContext = {};
 vm.createContext(safetyContext);
@@ -284,7 +296,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.5\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.6\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -295,8 +307,8 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.5\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.5\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/storage\.js\?v=2\.6\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.6\.0/, "aplicativo inclui o ciclo de estudos");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
 assert.match(htmlText, /id="createProfileForm"[\s\S]*id="profilesList"/, "modal permite criar e editar perfis pelo site");
 assert.doesNotMatch(htmlText, /value="eliane"/, "Eliane não é criada automaticamente");
