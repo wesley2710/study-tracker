@@ -368,6 +368,38 @@ function getStudyCycle() {
   return StudyCycleEngine.normalize(getStudyCycleRecord() || {});
 }
 
+function getCatalogOrderRecord() {
+  return settings.find((item) => item.id === "catalog-order") || null;
+}
+
+function getCatalogOrder() {
+  const record = getCatalogOrderRecord() || {};
+  return ReorderEngine.normalizeCatalogOrder(record.catalogOrderData || record.studyCycleSubjectIds || "{}");
+}
+
+function sortCatalogRecords(items, orderIds) {
+  return ReorderEngine.sortByOrder(items, orderIds, (item) => item.name);
+}
+
+function replaceCatalogOrderRecord(order, timestamp = Date.now()) {
+  const previous = getCatalogOrderRecord();
+  const serialized = JSON.stringify(ReorderEngine.normalizeCatalogOrder(order));
+  const record = {
+    ...previous,
+    id: "catalog-order",
+    catalogOrderData: serialized,
+    // Campo já sincronizado pelo backend atual; mantém a ordem disponível em outros dispositivos.
+    studyCycleSubjectIds: serialized,
+    createdAt: Number(previous?.createdAt || timestamp),
+    updatedAt: timestamp
+  };
+  settings = previous
+    ? settings.map((item) => item.id === record.id ? record : item)
+    : [...settings, record];
+  SettingsStorage.save(settings);
+  return record;
+}
+
 function getStudyCycleSubject(cycle = getStudyCycle(), index = cycle.currentIndex) {
   const subjectId = index >= 0 ? cycle.subjectIds[index] : "";
   return catalog.subjects.find((item) => item.id === subjectId) || null;
@@ -422,7 +454,8 @@ function renderStudyCycle() {
   if (!studyCycleList || !todayCycleTitle) return;
   const record = getStudyCycleRecord() || {};
   const cycle = StudyCycleEngine.normalize(record);
-  const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const catalogOrder = getCatalogOrder();
+  const activeSubjects = sortCatalogRecords(catalog.subjects.filter((item) => !item.archived), catalogOrder.subjects);
   const current = getStudyCycleSubject(cycle);
   const nextIndex = cycle.subjectIds.length ? (cycle.currentIndex + 1) % cycle.subjectIds.length : -1;
   const next = getStudyCycleSubject(cycle, nextIndex);
@@ -447,11 +480,9 @@ function renderStudyCycle() {
     const subject = catalog.subjects.find((item) => item.id === subjectId);
     const available = subject && !subject.archived;
     return `<div class="study-cycle-row ${index === cycle.currentIndex ? "current" : ""}" data-cycle-index="${index}">
-      <span class="study-cycle-order">${index + 1}</span>
+      <button class="study-cycle-order drag-handle" type="button" data-reorder-kind="cycle" data-reorder-index="${index}" data-reorder-label="${escapeAttribute(available ? subject.name : "Matéria indisponível")}" aria-label="Arrastar etapa ${index + 1}: ${escapeAttribute(available ? subject.name : "matéria indisponível")}. Use Alt e seta para cima ou para baixo no teclado." title="Segure e arraste para reorganizar"><span aria-hidden="true">☰</span><b>${index + 1}</b></button>
       <div class="study-cycle-copy"><strong>${escapeHtml(available ? subject.name : "Matéria arquivada ou indisponível")}</strong><small>${index === cycle.currentIndex ? "Etapa atual" : "Etapa do ciclo"}${available ? "" : " • ajuste recomendado"}</small></div>
       <div class="study-cycle-row-actions">
-        <button class="table-button" type="button" data-cycle-action="up" ${index === 0 ? "disabled" : ""} aria-label="Mover etapa para cima">↑</button>
-        <button class="table-button" type="button" data-cycle-action="down" ${index === cycle.subjectIds.length - 1 ? "disabled" : ""} aria-label="Mover etapa para baixo">↓</button>
         <button class="table-button danger" type="button" data-cycle-action="remove">Remover</button>
       </div>
     </div>`;
@@ -1006,18 +1037,19 @@ function renderSubjectPerformance() {
 
 function renderDatalists(selectedSubjectId = null, selectedTopicId = null, selectedSubtopicId = null) {
   const currentSubject = selectedSubjectId ?? subjectInput.value;
-  const activeSubjects = catalog.subjects.filter((item) => !item.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const catalogOrder = getCatalogOrder();
+  const activeSubjects = sortCatalogRecords(catalog.subjects.filter((item) => !item.archived), catalogOrder.subjects);
   subjectInput.innerHTML = `<option value="">Selecione uma matéria</option>${activeSubjects.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}`;
   if (activeSubjects.some((item) => item.id === currentSubject)) subjectInput.value = currentSubject;
   const subjectId = subjectInput.value;
   const currentTopic = selectedTopicId ?? topicInput.value;
-  const activeTopics = catalog.topics.filter((item) => !item.archived && item.subjectId === subjectId).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const activeTopics = sortCatalogRecords(catalog.topics.filter((item) => !item.archived && item.subjectId === subjectId), catalogOrder.topics[subjectId] || []);
   topicInput.disabled = !subjectId;
   topicInput.innerHTML = subjectId ? `<option value="">Selecione um tema</option>${activeTopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro a matéria</option>`;
   if (activeTopics.some((item) => item.id === currentTopic)) topicInput.value = currentTopic;
   const topicId = topicInput.value;
   const currentSubtopic = selectedSubtopicId ?? (subtopicInput?.value || "");
-  const activeSubtopics = (catalog.subtopics || []).filter((item) => !item.archived && item.topicId === topicId).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const activeSubtopics = sortCatalogRecords((catalog.subtopics || []).filter((item) => !item.archived && item.topicId === topicId), catalogOrder.subtopics[topicId] || []);
   if (subtopicInput) {
     subtopicInput.disabled = !topicId;
     subtopicInput.innerHTML = topicId ? `<option value="">Sem subtema</option>${activeSubtopics.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join("")}` : `<option value="">Selecione primeiro o tema</option>`;
@@ -2483,8 +2515,10 @@ function renderCatalogBulkActions() {
 
 function renderCatalog() {
   if (!catalogList) return;
-  const allSubjects = [...catalog.subjects].filter((x) => !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+  const catalogOrder = getCatalogOrder();
+  const allSubjects = sortCatalogRecords(catalog.subjects.filter((x) => !x.archived), catalogOrder.subjects);
   const term = (catalogSearch?.value || "").trim().toLocaleLowerCase("pt-BR");
+  const reorderDisabled = Boolean(term);
   catalogSubjectCount.textContent = allSubjects.length;
   renderCatalogBulkActions();
   if (!allSubjects.length) { catalogList.innerHTML = `<div class="empty-state"><strong>Nenhuma matéria cadastrada</strong><span>Cadastre sua primeira matéria e depois adicione os temas.</span></div>`; return; }
@@ -2497,24 +2531,192 @@ function renderCatalog() {
   if (!subjects.length) { catalogList.innerHTML = `<div class="empty-state catalog-no-results"><strong>Nenhum cadastro encontrado</strong><span>Tente pesquisar outro nome de matéria, tema ou subtema.</span></div>`; return; }
   catalogList.innerHTML = subjects.map((subject) => {
     const subjectMatches = term && subject.name.toLocaleLowerCase("pt-BR").includes(term);
-    const allTopics = catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived).sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
+    const allTopics = sortCatalogRecords(catalog.topics.filter((x) => x.subjectId === subject.id && !x.archived), catalogOrder.topics[subject.id] || []);
     const topics = !term || subjectMatches ? allTopics : allTopics.filter((topic) => topic.name.toLocaleLowerCase("pt-BR").includes(term) || catalog.subtopics.some((subtopic) => subtopic.topicId === topic.id && subtopic.name.toLocaleLowerCase("pt-BR").includes(term)));
     const recoverableMerge = CatalogEngine.findLatestMerge({ sessions, reviews, topics: catalog.topics }, subject.id);
     const subjectOpen = term || uiPreferences.openSubjects.includes(subject.id);
     return `<details class="catalog-subject" data-subject-id="${escapeAttribute(subject.id)}" ${subjectOpen ? "open" : ""}>
-      <summary class="catalog-subject-head"><div><strong>${escapeHtml(subject.name)}</strong><small>${allTopics.length} tema${allTopics.length===1?"":"s"}</small></div><div class="catalog-actions">${recoverableMerge ? `<button type="button" class="table-button" data-catalog-action="correct-merge">Corrigir última junção</button>` : ""}${allTopics.length > 1 ? `<button type="button" class="table-button" data-catalog-action="merge-topics">Mesclar temas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
+      <summary class="catalog-subject-head"><button class="drag-handle" type="button" data-reorder-kind="subject" data-reorder-id="${escapeAttribute(subject.id)}" data-reorder-label="${escapeAttribute(subject.name)}" ${reorderDisabled ? "disabled" : ""} aria-label="Arrastar matéria ${escapeAttribute(subject.name)}. Use Alt e seta para cima ou para baixo no teclado." title="${reorderDisabled ? "Limpe a pesquisa para reorganizar" : "Segure e arraste para reorganizar"}"><span aria-hidden="true">☰</span></button><div class="catalog-title-block"><strong>${escapeHtml(subject.name)}</strong><small>${allTopics.length} tema${allTopics.length===1?"":"s"}</small></div><div class="catalog-actions">${recoverableMerge ? `<button type="button" class="table-button" data-catalog-action="correct-merge">Corrigir última junção</button>` : ""}${allTopics.length > 1 ? `<button type="button" class="table-button" data-catalog-action="merge-topics">Mesclar temas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-subject">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subject">Arquivar</button></div></summary>
       <div class="catalog-subject-body">
         <div class="catalog-topics">${topics.map((topic)=>{
-          const allSubtopics=(catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+          const allSubtopics=sortCatalogRecords((catalog.subtopics||[]).filter((x)=>x.topicId===topic.id&&!x.archived),catalogOrder.subtopics[topic.id]||[]);
           const topicMatches = term && topic.name.toLocaleLowerCase("pt-BR").includes(term);
           const subtopics = !term || subjectMatches || topicMatches ? allSubtopics : allSubtopics.filter((sub)=>sub.name.toLocaleLowerCase("pt-BR").includes(term));
           const topicOpen = term || uiPreferences.openTopics.includes(topic.id);
-          return `<details class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}" ${topicOpen ? "open" : ""}><summary><input class="catalog-select" type="checkbox" data-topic-select="${escapeAttribute(topic.id)}" aria-label="Selecionar tema ${escapeAttribute(topic.name)}" ${catalogTopicSelection.has(topic.id) ? "checked" : ""}/><span class="catalog-topic-title"><strong>${escapeHtml(topic.name)}</strong><small>${allSubtopics.length} subtema${allSubtopics.length===1?"":"s"}</small></span><div>${allSubtopics.length ? `<button type="button" class="table-button" data-catalog-action="consolidate-subtopics">Consolidar subtemas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></summary><div class="catalog-subtopic-body"><div class="catalog-subtopics">${subtopics.map((sub)=>`<div class="catalog-subtopic" data-subtopic-id="${escapeAttribute(sub.id)}"><span>${escapeHtml(sub.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-subtopic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subtopic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">${term ? "Nenhum subtema corresponde à pesquisa." : "Nenhum subtema — opcional."}</small>`}</div><form class="subtopic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema (opcional)" /><button class="ghost-button" type="submit">+ Subtema</button></form></div></details>`;
+          return `<details class="catalog-topic" data-topic-id="${escapeAttribute(topic.id)}" ${topicOpen ? "open" : ""}><summary><button class="drag-handle" type="button" data-reorder-kind="topic" data-reorder-id="${escapeAttribute(topic.id)}" data-reorder-label="${escapeAttribute(topic.name)}" ${reorderDisabled ? "disabled" : ""} aria-label="Arrastar tema ${escapeAttribute(topic.name)}. Use Alt e seta para cima ou para baixo no teclado." title="${reorderDisabled ? "Limpe a pesquisa para reorganizar" : "Segure e arraste para reorganizar"}"><span aria-hidden="true">☰</span></button><input class="catalog-select" type="checkbox" data-topic-select="${escapeAttribute(topic.id)}" aria-label="Selecionar tema ${escapeAttribute(topic.name)}" ${catalogTopicSelection.has(topic.id) ? "checked" : ""}/><span class="catalog-topic-title"><strong>${escapeHtml(topic.name)}</strong><small>${allSubtopics.length} subtema${allSubtopics.length===1?"":"s"}</small></span><div class="catalog-topic-actions">${allSubtopics.length ? `<button type="button" class="table-button" data-catalog-action="consolidate-subtopics">Consolidar subtemas</button>` : ""}<button type="button" class="table-button" data-catalog-action="rename-topic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-topic">Arquivar</button></div></summary><div class="catalog-subtopic-body"><div class="catalog-subtopics">${subtopics.map((sub)=>`<div class="catalog-subtopic" data-subtopic-id="${escapeAttribute(sub.id)}"><button class="drag-handle" type="button" data-reorder-kind="subtopic" data-reorder-id="${escapeAttribute(sub.id)}" data-reorder-label="${escapeAttribute(sub.name)}" ${reorderDisabled ? "disabled" : ""} aria-label="Arrastar subtema ${escapeAttribute(sub.name)}. Use Alt e seta para cima ou para baixo no teclado." title="${reorderDisabled ? "Limpe a pesquisa para reorganizar" : "Segure e arraste para reorganizar"}"><span aria-hidden="true">☰</span></button><span class="catalog-subtopic-name">${escapeHtml(sub.name)}</span><div><button type="button" class="table-button" data-catalog-action="rename-subtopic">Renomear</button><button type="button" class="table-button danger" data-catalog-action="archive-subtopic">Arquivar</button></div></div>`).join("") || `<small class="catalog-empty-topic">${term ? "Nenhum subtema corresponde à pesquisa." : "Nenhum subtema — opcional."}</small>`}</div><form class="subtopic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar subtema (opcional)" /><button class="ghost-button" type="submit">+ Subtema</button></form></div></details>`;
         }).join("") || `<small class="catalog-empty-topic">Nenhum tema ainda.</small>`}</div>
         <form class="topic-catalog-form"><input name="name" maxlength="160" placeholder="Adicionar tema" required /><button class="ghost-button" type="submit">+ Tema</button></form>
       </div></details>`;
   }).join("");
 }
+
+const reorderConfigs = {
+  subject: { itemSelector: ".catalog-subject", dataKey: "subjectId" },
+  topic: { itemSelector: ".catalog-topic", dataKey: "topicId" },
+  subtopic: { itemSelector: ".catalog-subtopic", dataKey: "subtopicId" },
+  cycle: { itemSelector: ".study-cycle-row", dataKey: "cycleIndex" }
+};
+let activeReorderDrag = null;
+let suppressReorderClickUntil = 0;
+
+function getDirectReorderItems(container, selector) {
+  return [...(container?.children || [])].filter((item) => item.matches?.(selector));
+}
+
+function createReorderGhost(label, pointerX, pointerY) {
+  const ghost = document.createElement("div");
+  ghost.className = "reorder-ghost";
+  ghost.textContent = label || "Reorganizando";
+  document.body.appendChild(ghost);
+  positionReorderGhost(ghost, pointerX, pointerY);
+  return ghost;
+}
+
+function positionReorderGhost(ghost, pointerX, pointerY) {
+  if (!ghost) return;
+  const left = Math.max(10, Math.min(window.innerWidth - 250, pointerX + 14));
+  ghost.style.transform = `translate3d(${left}px, ${Math.max(10, pointerY + 12)}px, 0)`;
+}
+
+function beginReorderDrag(event) {
+  const handle = event.target.closest?.("[data-reorder-kind]");
+  if (!handle || handle.disabled || (event.pointerType === "mouse" && event.button !== 0) || event.isPrimary === false) return;
+  const config = reorderConfigs[handle.dataset.reorderKind];
+  const item = config ? handle.closest(config.itemSelector) : null;
+  const container = item?.parentElement;
+  if (!config || !item || !container) return;
+  const items = getDirectReorderItems(container, config.itemSelector);
+  const fromIndex = items.indexOf(item);
+  if (fromIndex < 0 || items.length < 2) return;
+  event.preventDefault();
+  event.stopPropagation();
+  handle.focus({ preventScroll: true });
+  activeReorderDrag = {
+    kind: handle.dataset.reorderKind,
+    handle,
+    item,
+    container,
+    fromIndex,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    started: false,
+    ghost: null,
+    label: handle.dataset.reorderLabel || "Item"
+  };
+}
+
+function moveReorderDrag(event) {
+  const drag = activeReorderDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+  if (!drag.started && distance < 6) return;
+  event.preventDefault();
+  if (!drag.started) {
+    drag.started = true;
+    drag.item.classList.add("is-dragging");
+    drag.container.classList.add("is-reordering");
+    document.body.classList.add("reorder-active");
+    drag.ghost = createReorderGhost(drag.label, event.clientX, event.clientY);
+  } else {
+    positionReorderGhost(drag.ghost, event.clientX, event.clientY);
+  }
+  const config = reorderConfigs[drag.kind];
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(config.itemSelector);
+  if (target && target !== drag.item && target.parentElement === drag.container) {
+    const bounds = target.getBoundingClientRect();
+    const insertBefore = event.clientY < bounds.top + bounds.height / 2;
+    drag.container.insertBefore(drag.item, insertBefore ? target : target.nextElementSibling);
+  }
+  if (event.clientY < 76) window.scrollBy(0, -14);
+  else if (event.clientY > window.innerHeight - 76) window.scrollBy(0, 14);
+}
+
+function cleanupReorderDrag() {
+  if (!activeReorderDrag) return;
+  activeReorderDrag.item.classList.remove("is-dragging");
+  activeReorderDrag.container.classList.remove("is-reordering");
+  activeReorderDrag.ghost?.remove();
+  document.body.classList.remove("reorder-active");
+  activeReorderDrag = null;
+}
+
+function commitCatalogDomOrder(kind, container) {
+  const config = reorderConfigs[kind];
+  const ids = getDirectReorderItems(container, config.itemSelector).map((item) => item.dataset[config.dataKey]).filter(Boolean);
+  const order = getCatalogOrder();
+  let label = "Ordem das matérias alterada";
+  if (kind === "subject") order.subjects = ids;
+  if (kind === "topic") {
+    const subjectId = container.closest(".catalog-subject")?.dataset.subjectId;
+    if (!subjectId) return false;
+    order.topics[subjectId] = ids;
+    label = "Ordem dos temas alterada";
+  }
+  if (kind === "subtopic") {
+    const topicId = container.closest(".catalog-topic")?.dataset.topicId;
+    if (!topicId) return false;
+    order.subtopics[topicId] = ids;
+    label = "Ordem dos subtemas alterada";
+  }
+  if (!captureUndo(label)) return false;
+  replaceCatalogOrderRecord(order);
+  addAuditEntry("reorder", label, "A nova ordem foi salva no perfil e será sincronizada.");
+  renderAll();
+  StudySync.run(true);
+  showToast("Ordem atualizada.", "success");
+  return true;
+}
+
+function commitReorder(kind, container, fromIndex, toIndex) {
+  if (fromIndex === toIndex) return false;
+  if (kind === "cycle") {
+    if (!captureUndo("Reordenação no ciclo de estudos")) return false;
+    const record = StudyCycleEngine.reorder(getStudyCycleRecord() || {}, fromIndex, toIndex, Date.now());
+    commitStudyCycle(record, { message:"Ordem do ciclo atualizada.", auditLabel:"Ordem do ciclo alterada" });
+    return true;
+  }
+  return commitCatalogDomOrder(kind, container);
+}
+
+function finishReorderDrag(event) {
+  const drag = activeReorderDrag;
+  if (!drag || (event?.pointerId != null && event.pointerId !== drag.pointerId)) return;
+  const config = reorderConfigs[drag.kind];
+  const toIndex = getDirectReorderItems(drag.container, config.itemSelector).indexOf(drag.item);
+  const started = drag.started;
+  const { kind, container, fromIndex } = drag;
+  cleanupReorderDrag();
+  if (!started) return;
+  suppressReorderClickUntil = Date.now() + 450;
+  if (!commitReorder(kind, container, fromIndex, toIndex)) renderAll();
+}
+
+function cancelReorderDrag() {
+  const started = Boolean(activeReorderDrag?.started);
+  cleanupReorderDrag();
+  if (started) renderAll();
+}
+
+function reorderWithKeyboard(event) {
+  const handle = event.target.closest?.("[data-reorder-kind]");
+  if (!handle || handle.disabled || !event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+  const kind = handle.dataset.reorderKind;
+  const config = reorderConfigs[kind];
+  const item = config ? handle.closest(config.itemSelector) : null;
+  const container = item?.parentElement;
+  if (!item || !container) return;
+  const items = getDirectReorderItems(container, config.itemSelector);
+  const fromIndex = items.indexOf(item);
+  const toIndex = fromIndex + (event.key === "ArrowUp" ? -1 : 1);
+  if (toIndex < 0 || toIndex >= items.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const target = items[toIndex];
+  container.insertBefore(item, toIndex < fromIndex ? target : target.nextElementSibling);
+  commitReorder(kind, container, fromIndex, toIndex);
+}
+
 function catalogNameExists(items, name, predicate = () => true, exceptId = null) { const n=normalizeCatalogName(name).toLocaleLowerCase("pt-BR"); return items.some((x)=>x.id!==exceptId && predicate(x) && !x.archived && normalizeCatalogName(x.name).toLocaleLowerCase("pt-BR")===n); }
 function saveCatalogAndRefresh(message) { CatalogStorage.save(catalog); renderAll(); StudySync.run(true); if(message) showToast(message,"success"); }
 function renameCatalogRecord(type, id) {
@@ -3118,6 +3320,19 @@ if (studyCycleActiveInput) studyCycleActiveInput.addEventListener("change", () =
     auditLabel: studyCycleActiveInput.checked ? "Ciclo de estudos ativado" : "Ciclo de estudos pausado"
   });
 });
+[catalogList, studyCycleList].filter(Boolean).forEach((root) => {
+  root.addEventListener("pointerdown", beginReorderDrag);
+  root.addEventListener("keydown", reorderWithKeyboard);
+  root.addEventListener("click", (event) => {
+    if (!event.target.closest?.(".drag-handle")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (Date.now() < suppressReorderClickUntil) event.stopImmediatePropagation();
+  });
+});
+window.addEventListener("pointermove", moveReorderDrag, { passive:false });
+window.addEventListener("pointerup", finishReorderDrag);
+window.addEventListener("pointercancel", cancelReorderDrag);
 if (studyCycleList) studyCycleList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-cycle-action]");
   const row = button?.closest("[data-cycle-index]");

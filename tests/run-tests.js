@@ -54,6 +54,18 @@ assert.equal(cycleEngine.normalize(cycleRecord).currentIndex, 2, "reordenação 
 cycleRecord = cycleEngine.remove(cycleRecord, 2, 700);
 assert.equal(cycleEngine.normalize(cycleRecord).subjectIds.length, 2, "etapas podem ser removidas sem afetar outras matérias");
 
+const reorderContext = {};
+vm.createContext(reorderContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/reorder.js"), "utf8")}\nthis.reorder = ReorderEngine;`, reorderContext);
+const reorderEngine = reorderContext.reorder;
+const normalizedOrder = reorderEngine.normalizeCatalogOrder(JSON.stringify({ subjects:["b", "a", "b"], topics:{ a:["t2", "t1"] }, subtopics:{ t1:["s2", "s1"] } }));
+assert.deepEqual(Array.from(normalizedOrder.subjects), ["b", "a"], "ordem sincronizada remove identificadores repetidos");
+assert.deepEqual(Array.from(normalizedOrder.topics.a), ["t2", "t1"], "ordem de temas é preservada por matéria");
+assert.deepEqual(Array.from(normalizedOrder.subtopics.t1), ["s2", "s1"], "ordem de subtemas é preservada por tema");
+const orderedSubjects = reorderEngine.sortByOrder([{id:"a",name:"A"},{id:"c",name:"C"},{id:"b",name:"B"}], ["b", "a"]);
+assert.deepEqual(Array.from(orderedSubjects, (item) => item.id), ["b", "a", "c"], "itens organizados aparecem antes dos novos itens");
+assert.deepEqual(Array.from(reorderEngine.move(["a", "b", "c"], 0, 2)), ["b", "c", "a"], "motor move itens para a posição escolhida");
+
 assert.equal(engine.getInitialInterval(), 3, "primeira revisão é sempre em 3 dias");
 assert.equal(engine.getInitialInterval(92), 3, "estudo com 92% continua agendando a primeira revisão em 3 dias");
 assert.equal(engine.getInitialInterval(100), 3, "estudo com 100% não antecipa a progressão");
@@ -302,7 +314,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.9\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.10\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -313,8 +325,9 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.9\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.9\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/storage\.js\?v=2\.10\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.10\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/reorder\.js\?v=2\.10\.0/, "motor de ordenação é carregado antes do aplicativo");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
@@ -392,6 +405,10 @@ assert.match(appSource, /function compareSmartRecommendations/, "empates de prio
 assert.match(appSource, /function getSmartRecommendationExplanation/, "cada nota de prioridade possui explicação detalhada");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.smart-study-panel \.help-button \.explanation-popover[\s\S]*left:0;[\s\S]*width:100%;/, "ajuda da prioridade permanece dentro da tela no celular");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.smart-score \.explanation-popover[\s\S]*left:0;[\s\S]*width:100%;/, "detalhamento de cada nota permanece dentro da tela no celular");
+assert.match(appSource, /function beginReorderDrag/, "arraste por mouse ou toque está implementado");
+assert.match(appSource, /function reorderWithKeyboard/, "reordenação mantém alternativa acessível pelo teclado");
+assert.match(appSource, /id: "catalog-order"[\s\S]*studyCycleSubjectIds: serialized/, "ordem do catálogo usa um registro sincronizado compatível com o backend atual");
+assert.doesNotMatch(htmlText, /data-cycle-action="up"|data-cycle-action="down"/, "setas antigas do ciclo foram substituídas pela alça de arraste");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.

@@ -2,6 +2,13 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.10
+
+- Matérias, temas, subtemas e etapas do ciclo podem ser reorganizados segurando e arrastando a alça.
+- A ordem fica salva no perfil, participa do backup e é sincronizada entre dispositivos.
+- A alternativa `Alt + ↑` ou `Alt + ↓` permite reorganizar pelo teclado.
+- Nomes e contagens do catálogo ficaram alinhados à esquerda, e o formulário de novo subtema mantém altura fixa.
+
 ## Versão 2.9
 
 - A prioridade inteligente agora explica como cada nota foi formada, fator por fator.

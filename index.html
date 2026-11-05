@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("studyTracker.theme.v1")==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-  <link rel="stylesheet" href="css/style.css?v=2.9.2" />
+  <link rel="stylesheet" href="css/style.css?v=2.10.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -51,7 +51,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.9</p>
+        <p>Versão 2.10</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
@@ -721,7 +721,7 @@
             <div>
               <span class="panel-kicker">Planejamento</span>
               <h3>Ciclo de Estudos</h3>
-              <small>Organize apenas as matérias. Uma matéria pode aparecer mais de uma vez para receber mais prioridade.</small>
+              <small>Organize apenas as matérias. Uma matéria pode aparecer mais de uma vez. Segure a alça e arraste para mudar a sequência.</small>
             </div>
             <label class="study-cycle-toggle"><input id="studyCycleActive" type="checkbox" /><span>Ciclo ativo</span></label>
           </div>
@@ -753,7 +753,7 @@
               <span class="badge"><strong id="catalogSubjectCount">0</strong>&nbsp; matérias ativas</span>
             </div>
           </div>
-          <p class="catalog-help">Cadastre cada matéria uma vez. Dentro dela, organize os temas e, quando necessário, subtemas opcionais. Clique em uma matéria ou tema para expandir. Renomear ou arquivar preserva o histórico pelos identificadores.</p>
+          <p class="catalog-help">Cadastre cada matéria uma vez. Dentro dela, organize temas e subtemas opcionais. Use a alça para arrastar e mudar a ordem; clique no restante da linha para expandir. Renomear ou arquivar preserva o histórico pelos identificadores.</p>
           <div class="catalog-toolbar">
             <input id="catalogSearch" class="search-input" type="search" placeholder="Pesquisar matéria, tema ou subtema..." />
             <div id="catalogBulkActions" class="bulk-actions hidden">
@@ -1059,14 +1059,15 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.9.0"></script>
-  <script src="js/api.js?v=2.9.0"></script>
-  <script src="js/sync.js?v=2.9.0"></script>
+  <script src="js/storage.js?v=2.10.0"></script>
+  <script src="js/api.js?v=2.10.0"></script>
+  <script src="js/sync.js?v=2.10.0"></script>
   <script src="js/reviews.js?v=2.1.1"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.9.0"></script>
-  <script src="js/study-cycle.js?v=2.9.0"></script>
-  <script src="js/app.js?v=2.9.0"></script>
+  <script src="js/safety.js?v=2.10.0"></script>
+  <script src="js/study-cycle.js?v=2.10.0"></script>
+  <script src="js/reorder.js?v=2.10.0"></script>
+  <script src="js/app.js?v=2.10.0"></script>
 </body>
 </html>
