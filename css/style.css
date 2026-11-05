@@ -1368,11 +1368,20 @@ td { color: #dbe5ee; }
 @media (max-width:620px) {
   .smart-study-item {
     grid-template-columns:auto 1fr;
+    position:relative;
   }
 
   .smart-score {
     grid-column:2;
     justify-self:start;
+    position:static;
+  }
+
+  .smart-score .explanation-popover {
+    left:0;
+    right:auto;
+    width:100%;
+    max-width:320px;
   }
 
   .smart-study-panel .panel-header {

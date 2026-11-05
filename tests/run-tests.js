@@ -391,6 +391,7 @@ assert.match(appSource, /function getRecommendationScoreBreakdown/, "pontuação
 assert.match(appSource, /function compareSmartRecommendations/, "empates de prioridade usam critérios determinísticos");
 assert.match(appSource, /function getSmartRecommendationExplanation/, "cada nota de prioridade possui explicação detalhada");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.smart-study-panel \.help-button \.explanation-popover[\s\S]*left:0;[\s\S]*width:100%;/, "ajuda da prioridade permanece dentro da tela no celular");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.smart-score \.explanation-popover[\s\S]*left:0;[\s\S]*width:100%;/, "detalhamento de cada nota permanece dentro da tela no celular");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.
