@@ -409,6 +409,7 @@ assert.match(appSource, /function beginReorderDrag/, "arraste por mouse ou toque
 assert.match(appSource, /function reorderWithKeyboard/, "reordenação mantém alternativa acessível pelo teclado");
 assert.match(appSource, /id: "catalog-order"[\s\S]*studyCycleSubjectIds: serialized/, "ordem do catálogo usa um registro sincronizado compatível com o backend atual");
 assert.doesNotMatch(htmlText, /data-cycle-action="up"|data-cycle-action="down"/, "setas antigas do ciclo foram substituídas pela alça de arraste");
+assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /catalog-subject-head,\.catalog-topic>summary\{align-items:center;flex-wrap:wrap\}/, "ações do catálogo quebram para uma linha própria no celular");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.
