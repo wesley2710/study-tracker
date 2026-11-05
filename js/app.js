@@ -1210,6 +1210,40 @@ function getLatestSessionForTopic(subject, topic, subtopic = "") {
     .sort((a,b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0] || null;
 }
 
+function getRecommendationScoreBreakdown(topic, review, recencyDays) {
+  const percentage = Number.isFinite(topic.percentage) ? topic.percentage : 0;
+  const performancePoints = Math.max(0, 100 - percentage) * 0.45;
+  const confidencePoints = topic.confidence.className === "low" ? 18 : topic.confidence.className === "medium" ? 8 : 0;
+  const reviewPoints = review?.status === "overdue" ? 30 : review?.status === "today" ? 18 : 0;
+  const recencyPoints = recencyDays >= 30 ? 12 : recencyDays >= 14 ? 8 : recencyDays >= 7 ? 4 : 0;
+  const samplePoints = topic.questions < 20 ? 8 : 0;
+  const rawScore = performancePoints + confidencePoints + reviewPoints + recencyPoints + samplePoints;
+  return {
+    performancePoints,
+    confidencePoints,
+    reviewPoints,
+    recencyPoints,
+    samplePoints,
+    rawScore,
+    score: Math.round(Math.min(100, rawScore))
+  };
+}
+
+function recommendationReviewUrgency(item) {
+  return item.reviewStatus === "overdue" ? 2 : item.reviewStatus === "today" ? 1 : 0;
+}
+
+function compareSmartRecommendations(a, b) {
+  const percentageA = Number.isFinite(a.percentage) ? a.percentage : 0;
+  const percentageB = Number.isFinite(b.percentage) ? b.percentage : 0;
+  return b.score - a.score
+    || recommendationReviewUrgency(b) - recommendationReviewUrgency(a)
+    || b.recencyDays - a.recencyDays
+    || percentageA - percentageB
+    || a.questions - b.questions
+    || (a.subtopic || a.topic).localeCompare(b.subtopic || b.topic, "pt-BR");
+}
+
 function buildSmartStudyRecommendations() {
   const topics = aggregateTopics();
   const schedule = buildReviewSchedule();
@@ -1219,20 +1253,7 @@ function buildSmartStudyRecommendations() {
     const latest = getLatestSessionForTopic(topic.subject, topic.topic, topic.subtopic);
     const recencyDays = latest ? daysSince(latest.date) : 999;
 
-    let score = 0;
-    score += Math.max(0, 100 - topic.percentage) * 0.45;
-
-    if (topic.confidence.className === "low") score += 18;
-    else if (topic.confidence.className === "medium") score += 8;
-
-    if (review?.status === "overdue") score += 30;
-    else if (review?.status === "today") score += 18;
-
-    if (recencyDays >= 30) score += 12;
-    else if (recencyDays >= 14) score += 8;
-    else if (recencyDays >= 7) score += 4;
-
-    if (topic.questions < 20) score += 8;
+    const scoreBreakdown = getRecommendationScoreBreakdown(topic, review, recencyDays);
 
     return {
       subjectId: topic.subjectId || null,
@@ -1248,9 +1269,33 @@ function buildSmartStudyRecommendations() {
       recencyDays,
       reviewStatus: review?.status || "upcoming",
       reviewDate: review?.nextDate || null,
-      score: Math.round(Math.min(100, score))
+      scoreBreakdown,
+      score: scoreBreakdown.score
     };
-  }).sort((a,b) => b.score - a.score || a.percentage - b.percentage);
+  }).sort(compareSmartRecommendations);
+}
+
+function getRecommendationTieExplanation(item, items, index) {
+  const nextPeer = items[index + 1]?.score === item.score ? items[index + 1] : null;
+  const previousPeer = items[index - 1]?.score === item.score ? items[index - 1] : null;
+  const peer = nextPeer || previousPeer;
+  if (!peer) return "";
+  const position = nextPeer ? "ficou à frente" : "ficou depois";
+  if (recommendationReviewUrgency(item) !== recommendationReviewUrgency(peer)) return ` Em caso de empate, ${position} pelo critério de revisão mais urgente.`;
+  if (item.recencyDays !== peer.recencyDays) return ` Em caso de empate, ${position} pelo critério de maior tempo sem contato.`;
+  if (item.percentage !== peer.percentage) return ` Em caso de empate, ${position} pelo critério de menor desempenho.`;
+  if (item.questions !== peer.questions) return ` Em caso de empate, ${position} pelo critério de menor quantidade de questões.`;
+  return ` Em caso de empate completo, ${position} pela ordem alfabética.`;
+}
+
+function getSmartRecommendationExplanation(item, items, index) {
+  const parts = [`${formatPriorityPoints(item.scoreBreakdown.performancePoints)} pelo desempenho de ${formatPercent(item.percentage)}`];
+  if (item.scoreBreakdown.confidencePoints) parts.push(`${item.scoreBreakdown.confidencePoints} pela confiança ${item.confidence.label.toLowerCase()}`);
+  if (item.scoreBreakdown.reviewPoints) parts.push(`${item.scoreBreakdown.reviewPoints} por ${item.reviewStatus === "overdue" ? "revisão atrasada" : "revisão marcada para hoje"}`);
+  if (item.scoreBreakdown.recencyPoints) parts.push(`${item.scoreBreakdown.recencyPoints} por ${item.recencyDays} dias sem contato`);
+  if (item.scoreBreakdown.samplePoints) parts.push(`${item.scoreBreakdown.samplePoints} por ter menos de 20 questões`);
+  const capNote = item.scoreBreakdown.rawScore > 100 ? " A soma foi limitada ao máximo de 100." : "";
+  return `${item.score} pontos: ${parts.join(" + ")}.${capNote}${getRecommendationTieExplanation(item, items, index)}`;
 }
 
 function getRecommendationReason(item) {
@@ -1281,7 +1326,10 @@ function renderSmartStudy() {
         <strong>${escapeHtml(item.topic)}</strong>
         <small>${escapeHtml(item.subject)} • ${formatPercent(item.percentage)} • ${getRecommendationReason(item)}</small>
       </div>
-      <span class="smart-score">${item.score}</span>
+      <button class="smart-score explanation-trigger" type="button" aria-label="${escapeAttribute(getSmartRecommendationExplanation(item, items, index))}">
+        <span>${item.score}</span><span class="help-mark" aria-hidden="true">?</span>
+        <span class="explanation-popover" role="tooltip">${escapeHtml(getSmartRecommendationExplanation(item, items, index))}</span>
+      </button>
     </div>
   `).join("");
 

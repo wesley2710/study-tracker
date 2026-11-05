@@ -1218,14 +1218,38 @@ td { color: #dbe5ee; }
 }
 
 .smart-score {
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
   min-width:44px;
   text-align:center;
   padding:6px 8px;
+  border:0;
   border-radius:999px;
   background:rgba(240,184,90,.11);
   color:var(--warning);
+  font:inherit;
   font-size:10px;
   font-weight:800;
+  cursor:help;
+}
+
+.smart-score .help-mark {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:14px;
+  height:14px;
+  border:1px solid color-mix(in srgb, var(--warning) 52%, transparent);
+  border-radius:50%;
+  font-size:9px;
+  line-height:1;
+}
+
+.smart-score .explanation-popover {
+  right:0;
 }
 
 .smart-insight {

@@ -2,6 +2,12 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.9
+
+- A prioridade inteligente agora explica como cada nota foi formada, fator por fator.
+- Empates usam critérios determinísticos e visíveis: revisão mais urgente, maior tempo sem contato, menor desempenho, menos questões e ordem alfabética.
+- A ajuda geral da seção apresenta a fórmula completa da pontuação.
+
 ## Executar localmente
 
 Sirva a pasta com um servidor HTTP (abrir por `file://` pode limitar chamadas de rede):

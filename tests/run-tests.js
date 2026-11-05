@@ -302,7 +302,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.8\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.9\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -313,8 +313,8 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.8\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.8\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/storage\.js\?v=2\.9\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.9\.0/, "aplicativo inclui o ciclo de estudos");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
@@ -386,6 +386,10 @@ assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.sideb
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /\.sidebar-backdrop\.visible\s*\{[^}]*left:250px/s, "fundo móvel começa após o menu para receber o toque externo");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm \.form-footer \{ position:sticky/, "botão de salvar permanece acessível no celular");
 assert.match(fs.readFileSync(path.join(root, "css/style.css"), "utf8"), /#studyForm input,#studyForm select.*min-height:50px/, "campos do formulário são maiores no celular");
+assert.match(htmlText, /Como a prioridade inteligente é calculada/, "prioridade inteligente possui ajuda geral");
+assert.match(appSource, /function getRecommendationScoreBreakdown/, "pontuação inteligente mantém a composição de fatores");
+assert.match(appSource, /function compareSmartRecommendations/, "empates de prioridade usam critérios determinísticos");
+assert.match(appSource, /function getSmartRecommendationExplanation/, "cada nota de prioridade possui explicação detalhada");
 
 
 // Regressões v1.3.1: fila, percentual acumulado e estudo sem questões.
