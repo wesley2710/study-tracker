@@ -175,6 +175,9 @@ assert.match(appSource, /activeChartPeriod = '30'/, "gráficos iniciam com perí
 assert.match(appSource, /getChartGranularity\(range\)/, "agrupamento dos gráficos se adapta ao período");
 assert.match(appSource, /questionsPerHour/, "eficiência compara questões por hora por matéria");
 assert.doesNotMatch(appSource, /type: "scatter"/, "gráfico de bolinhas foi substituído por ranking legível");
+assert.match(appSource, /function formatDurationNatural\(totalSeconds\)/, "gráfico formata tempo em horas e minutos legíveis");
+assert.match(appSource, /data: subjectRows\.map\(\(\[,seconds\]\) => seconds\)/, "gráfico preserva os segundos exatos sem arredondar horas decimais");
+assert.match(appSource, /No período:.*formatDurationNatural\(periodSeconds\)[\s\S]*Todo o histórico:.*formatDurationNatural\(historicalSeconds\)/, "detalhe do gráfico explica a diferença entre período e histórico completo");
 
 const catalogContext = {};
 vm.createContext(catalogContext);
@@ -296,7 +299,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.6\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.7\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -307,8 +310,8 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.6\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.6\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/storage\.js\?v=2\.7\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.7\.0/, "aplicativo inclui o ciclo de estudos");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
 assert.match(htmlText, /id="createProfileForm"[\s\S]*id="profilesList"/, "modal permite criar e editar perfis pelo site");
 assert.doesNotMatch(htmlText, /value="eliane"/, "Eliane não é criada automaticamente");

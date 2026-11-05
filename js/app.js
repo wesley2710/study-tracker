@@ -1036,6 +1036,16 @@ function formatDuration(totalSeconds) {
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
+function formatDurationNatural(totalSeconds) {
+  const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!hours) return `${minutes} min`;
+  if (!minutes) return `${hours}h`;
+  return `${hours}h ${minutes}min`;
+}
+
 function formatClock(totalSeconds) {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -1548,9 +1558,11 @@ function renderCharts() {
 
   const bySubject = new Map();
   filteredSessions.forEach((s) => bySubject.set(s.subject, (bySubject.get(s.subject) || 0) + Number(s.durationSeconds || 0)));
+  const allTimeBySubject = new Map();
+  sessions.forEach((s) => allTimeBySubject.set(s.subject, (allTimeBySubject.get(s.subject) || 0) + Number(s.durationSeconds || 0)));
   const subjectRows = [...bySubject.entries()].filter(([,seconds]) => seconds > 0).sort((a,b) => b[1]-a[1]);
   const totalSecondsInRange = subjectRows.reduce((sum,[,seconds]) => sum + seconds, 0);
-  studyHoursChartCaption.textContent = `${formatDuration(totalSecondsInRange)} em ${subjectRows.length} matéria${subjectRows.length === 1 ? "" : "s"}`;
+  studyHoursChartCaption.textContent = `${formatDurationNatural(totalSecondsInRange)} no período • ${range.label} • ${subjectRows.length} matéria${subjectRows.length === 1 ? "" : "s"}`;
   studyHoursChartInner.style.height = `${Math.max(310, subjectRows.length * 48)}px`;
 
   studyHoursChartInstance = destroyChart(studyHoursChartInstance);
@@ -1559,8 +1571,8 @@ function renderCharts() {
     data: {
       labels: subjectRows.map(([name]) => name),
       datasets: [{
-        label: "Horas",
-        data: subjectRows.map(([,seconds]) => +(seconds/3600).toFixed(2)),
+        label: "Tempo estudado",
+        data: subjectRows.map(([,seconds]) => seconds),
         backgroundColor: "rgba(53,197,139,.72)",
         borderColor: "#35c58b",
         borderWidth: 1,
@@ -1572,10 +1584,27 @@ function renderCharts() {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      scales: { x: { grid: gridStyle, ticks: tickStyle }, y: { grid: { display: false }, ticks: tickStyle } },
+      scales: {
+        x: { grid: gridStyle, ticks: { ...tickStyle, callback: (value) => formatDurationNatural(value) } },
+        y: { grid: { display: false }, ticks: tickStyle }
+      },
       plugins: {
         legend: { display: false },
-        tooltip: { ...tooltipStyle, callbacks: { label: (context) => `${context.raw.toFixed(1).replace(".", ",")} horas` } }
+        tooltip: {
+          ...tooltipStyle,
+          callbacks: {
+            label(context) {
+              const subject = subjectRows[context.dataIndex]?.[0] || context.label;
+              const periodSeconds = Number(context.raw || 0);
+              const historicalSeconds = Number(allTimeBySubject.get(subject) || 0);
+              if (activeChartPeriod === "all") return `Tempo total: ${formatDurationNatural(historicalSeconds)}`;
+              return [
+                `No período: ${formatDurationNatural(periodSeconds)}`,
+                `Todo o histórico: ${formatDurationNatural(historicalSeconds)}`
+              ];
+            }
+          }
+        }
       }
     }
   });

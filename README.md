@@ -109,6 +109,10 @@ Na tela Hoje, o ciclo mostra a matéria atual e a próxima etapa. O botão de es
 
 As alterações são salvas imediatamente no navegador e agrupadas por alguns instantes antes do envio ao Google Sheets. A interface continua disponível durante a sincronização, mudanças feitas enquanto um envio está em andamento são preservadas para o lote seguinte e o retorno do servidor é combinado com o estado local mais recente. O fluxo também elimina a consulta completa que antes acontecia antes de cada envio, reduzindo o tempo de sincronização sem alterar os dados existentes.
 
+## V2.7 — Horas exatas por matéria
+
+O gráfico de distribuição continua respeitando o período escolhido nos gráficos, mas passa a mostrar horas e minutos em vez de horas decimais. O resumo identifica explicitamente o período aplicado e o detalhe de cada barra compara o tempo do período selecionado com o total de todo o histórico, evitando confusão com a tabela de desempenho detalhado, que reúne todos os registros.
+
 ## V1.9 — Hoje e melhorias de usabilidade
 
 A nova tela inicial **Hoje** reúne tempo estudado e progresso da meta diária, revisões atrasadas, revisões programadas para o dia e a próxima sugestão de estudo. Atalhos permitem iniciar ou continuar o cronômetro e abrir o formulário de registro já no assunto sugerido.
