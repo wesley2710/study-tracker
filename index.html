@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>try{document.documentElement.dataset.theme=localStorage.getItem("studyTracker.theme.v1")==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-  <link rel="stylesheet" href="css/style.css?v=2.7.0" />
+  <link rel="stylesheet" href="css/style.css?v=2.8.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -51,7 +51,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <p>Versão 2.7</p>
+        <p>Versão 2.8</p>
         <span>Planejamento adaptativo de revisões</span>
       </div>
     </aside>
@@ -569,7 +569,13 @@
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Diagnóstico</span>
-                <h3>Pontos que exigem atenção</h3>
+                <div class="title-with-help">
+                  <h3>Pontos que exigem atenção</h3>
+                  <button class="help-button explanation-trigger" type="button" aria-label="Como a pontuação de prioridade é calculada">
+                    ?
+                    <span class="explanation-popover" role="tooltip">A nota vai de 0 a 100. Ela soma os pontos perdidos no desempenho (100 menos o percentual de acertos), até 15 pontos quando a confiança ainda é baixa e 10 pontos quando há menos de 20 questões. Quanto maior, mais atenção o assunto exige. Tempo estudado e tempo sem contato não entram nesta nota.</span>
+                  </button>
+                </div>
               </div>
               <span class="counter" id="weakTopicsCount">0</span>
             </div>
@@ -585,23 +591,29 @@
             <div class="panel-header">
               <div>
                 <span class="panel-kicker">Domínio</span>
-                <h3>Distribuição de temas e subtemas</h3>
+                <div class="title-with-help">
+                  <h3>Distribuição de temas e subtemas</h3>
+                  <button class="help-button explanation-trigger" type="button" aria-label="Como os estados de domínio são definidos">
+                    ?
+                    <span class="explanation-popover" role="tooltip">O estado combina percentual, quantidade de questões e confiança da evidência. Revisões programadas e baterias independentes têm preferência no cálculo da confiança. Passe pelo ponto de interrogação de cada estado para ver sua regra.</span>
+                  </button>
+                </div>
               </div>
             </div>
 
             <div class="mastery-summary">
               <div class="mastery-box learning">
-                <span>Aprendizado</span>
+                <div class="mastery-label"><span>Aprendizado</span><button class="mini-help explanation-trigger" type="button" aria-label="Critério de Aprendizado">?<span class="explanation-popover" role="tooltip">Assuntos sem questões, com menos de 70% de acertos ou com menos de 20 questões. Indica que a base ainda precisa ser construída ou medida melhor.</span></button></div>
                 <strong id="learningCount">0</strong>
                 <small>Desempenho ainda instável</small>
               </div>
               <div class="mastery-box consolidation">
-                <span>Consolidação</span>
+                <div class="mastery-label"><span>Consolidação</span><button class="mini-help explanation-trigger" type="button" aria-label="Critério de Consolidação">?<span class="explanation-popover" role="tooltip">Pelo menos 70% de acertos e 20 questões. O assunto já avançou, mas ainda não atingiu simultaneamente 90% e confiança alta.</span></button></div>
                 <strong id="consolidationCount">0</strong>
                 <small>Bom avanço, ainda com oscilações</small>
               </div>
               <div class="mastery-box maintenance">
-                <span>Manutenção</span>
+                <div class="mastery-label"><span>Manutenção</span><button class="mini-help explanation-trigger" type="button" aria-label="Critério de Manutenção">?<span class="explanation-popover" role="tooltip">Pelo menos 90% de acertos e confiança alta. Confiança alta exige 100 questões de evidência em pelo menos 4 sessões; revisões e baterias independentes têm preferência como evidência.</span></button></div>
                 <strong id="maintenanceCount">0</strong>
                 <small>Domínio consistente</small>
               </div>
@@ -1041,14 +1053,14 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js?v=1.1.2"></script>
-  <script src="js/storage.js?v=2.7.0"></script>
-  <script src="js/api.js?v=2.7.0"></script>
-  <script src="js/sync.js?v=2.7.0"></script>
+  <script src="js/storage.js?v=2.8.0"></script>
+  <script src="js/api.js?v=2.8.0"></script>
+  <script src="js/sync.js?v=2.8.0"></script>
   <script src="js/reviews.js?v=2.1.1"></script>
   <script src="js/review-planner.js?v=2.0.0"></script>
   <script src="js/catalog.js?v=2.0.2"></script>
-  <script src="js/safety.js?v=2.7.0"></script>
-  <script src="js/study-cycle.js?v=2.7.0"></script>
-  <script src="js/app.js?v=2.7.0"></script>
+  <script src="js/safety.js?v=2.8.0"></script>
+  <script src="js/study-cycle.js?v=2.8.0"></script>
+  <script src="js/app.js?v=2.8.0"></script>
 </body>
 </html>

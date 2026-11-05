@@ -776,7 +776,73 @@ td { color: #dbe5ee; }
   font-size: 10px;
 }
 
+.title-with-help,
+.mastery-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-with-help h3 { margin: 0; }
+
+.help-button,
+.mini-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: 800 11px/1 inherit;
+  cursor: help;
+}
+
+.mini-help {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+}
+
+.mastery-label > span { display: inline; }
+
+.explanation-trigger { position: relative; }
+
+.explanation-popover {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 9px);
+  display: none !important;
+  width: min(320px, calc(100vw - 52px));
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(0,0,0,.28);
+  color: var(--text) !important;
+  font-size: 11px !important;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.explanation-trigger:hover .explanation-popover,
+.explanation-trigger:focus-visible .explanation-popover,
+.explanation-trigger:focus .explanation-popover {
+  display: block !important;
+}
+
 .priority-score {
+  position: relative;
+  border: 0;
   min-width: 48px;
   text-align: center;
   padding: 6px 8px;
@@ -785,6 +851,21 @@ td { color: #dbe5ee; }
   font-weight: 800;
   background: rgba(255,112,112,.12);
   color: var(--danger);
+  cursor: help;
+}
+
+.priority-score .help-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  opacity: .85;
 }
 
 .mastery-summary {
@@ -896,6 +977,9 @@ td { color: #dbe5ee; }
   .mastery-summary {
     grid-template-columns: 1fr;
   }
+
+  .diagnostic-item { align-items: start; }
+  .priority-score .explanation-popover { right: -2px; }
 }
 
 

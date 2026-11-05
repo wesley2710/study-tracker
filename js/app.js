@@ -2052,13 +2052,15 @@ function aggregateTopics() {
     const evidenceSessions = item.diagnosticQuestions ? item.diagnosticSessions : item.sessions;
     const confidence = getConfidence(evidenceQuestions, evidenceSessions);
     const mastery = getMasteryState(percentage, confidence, item.questions);
-    const priorityScore = getPriorityScore(percentage, confidence, item.questions);
+    const priorityBreakdown = getPriorityBreakdown(percentage, confidence, item.questions);
+    const priorityScore = priorityBreakdown.score;
 
     return {
       ...item,
       percentage,
       confidence,
       mastery,
+      priorityBreakdown,
       priorityScore
     };
   });
@@ -2087,12 +2089,36 @@ function getMasteryState(percentage, confidence, questions) {
   return { label: "Aprendizado", className: "learning" };
 }
 
-function getPriorityScore(percentage, confidence, questions) {
-  if (!questions || !Number.isFinite(percentage)) return 0;
+function getPriorityBreakdown(percentage, confidence, questions) {
+  if (!questions || !Number.isFinite(percentage)) {
+    return { performancePoints: 0, confidencePenalty: 0, samplePenalty: 0, score: 0 };
+  }
   const performanceFactor = Math.max(0, 100 - percentage);
   const confidencePenalty = confidence.className === "low" ? 15 : confidence.className === "medium" ? 7 : 0;
   const samplePenalty = questions < 20 ? 10 : 0;
-  return Math.round(Math.min(100, performanceFactor + confidencePenalty + samplePenalty));
+  return {
+    performancePoints: performanceFactor,
+    confidencePenalty,
+    samplePenalty,
+    score: Math.round(Math.min(100, performanceFactor + confidencePenalty + samplePenalty))
+  };
+}
+
+function getPriorityScore(percentage, confidence, questions) {
+  return getPriorityBreakdown(percentage, confidence, questions).score;
+}
+
+function formatPriorityPoints(value) {
+  return Number(value || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+}
+
+function getPriorityExplanation(item) {
+  const parts = [`${formatPriorityPoints(item.priorityBreakdown.performancePoints)} por desempenho (${formatPercent(item.percentage)})`];
+  if (item.priorityBreakdown.confidencePenalty) {
+    parts.push(`${item.priorityBreakdown.confidencePenalty} por confiança ${item.confidence.label.toLowerCase()}`);
+  }
+  if (item.priorityBreakdown.samplePenalty) parts.push(`${item.priorityBreakdown.samplePenalty} por amostra menor que 20 questões`);
+  return `${item.priorityScore} pontos: ${parts.join(" + ")}. Quanto maior a nota, maior a necessidade de atenção. Tempo estudado e tempo sem contato não entram nesta nota.`;
 }
 
 function getPriorityLabel(score) {
@@ -2153,7 +2179,10 @@ function renderTopicAnalytics() {
           <strong>${escapeHtml(item.subtopic || item.topic)}</strong>
           <small>${escapeHtml(item.subject)}${item.subtopic ? ` • ${escapeHtml(item.topic)}` : ""} • ${formatPercent(item.percentage)} • ${formatNumber(item.questions)} questões</small>
         </div>
-        <span class="priority-score">${item.priorityScore}</span>
+        <button class="priority-score explanation-trigger" type="button" aria-label="${escapeAttribute(getPriorityExplanation(item))}">
+          <span>${item.priorityScore}</span><span class="help-mark" aria-hidden="true">?</span>
+          <span class="explanation-popover" role="tooltip">${escapeHtml(getPriorityExplanation(item))}</span>
+        </button>
       </div>
     `).join("");
   }

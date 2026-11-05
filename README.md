@@ -113,6 +113,10 @@ As alterações são salvas imediatamente no navegador e agrupadas por alguns in
 
 O gráfico de distribuição continua respeitando o período escolhido nos gráficos, mas passa a mostrar horas e minutos em vez de horas decimais. O resumo identifica explicitamente o período aplicado e o detalhe de cada barra compara o tempo do período selecionado com o total de todo o histórico, evitando confusão com a tabela de desempenho detalhado, que reúne todos os registros.
 
+## V2.8 — Diagnóstico explicado
+
+As notas de prioridade agora exibem sua composição ao passar o mouse, focar pelo teclado ou tocar no ponto de interrogação. A explicação separa os pontos de desempenho, confiança e quantidade mínima de questões, além de esclarecer quais fatores não fazem parte da nota. A distribuição de domínio também apresenta as regras exatas de Aprendizado, Consolidação e Manutenção.
+
 ## V1.9 — Hoje e melhorias de usabilidade
 
 A nova tela inicial **Hoje** reúne tempo estudado e progresso da meta diária, revisões atrasadas, revisões programadas para o dia e a próxima sugestão de estudo. Atalhos permitem iniciar ou continuar o cronômetro e abrir o formulário de registro já no assunto sugerido.
