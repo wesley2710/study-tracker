@@ -1374,6 +1374,22 @@ td { color: #dbe5ee; }
     grid-column:2;
     justify-self:start;
   }
+
+  .smart-study-panel .panel-header {
+    position:relative;
+  }
+
+  .smart-study-panel .title-with-help,
+  .smart-study-panel .help-button {
+    position:static;
+  }
+
+  .smart-study-panel .help-button .explanation-popover {
+    left:0;
+    right:auto;
+    width:100%;
+    max-width:320px;
+  }
 }
 
 /* V1.1 — contexto de questões e simulados */
