@@ -140,6 +140,18 @@ const metaAfterConcurrentChange = syncContext.sync.nextSyncMeta(
 );
 assert.equal(metaAfterConcurrentChange.pendingChanges, 1, "somente mudanças posteriores ao envio continuam pendentes");
 assert.deepEqual(JSON.parse(JSON.stringify(metaAfterConcurrentChange.sessionTombstones)), { new: 30 }, "exclusão criada durante o envio permanece para o próximo lote");
+const mutableMeta = { pendingChanges: 2, sessionTombstones: { sent: 10 } };
+const sentMetaSnapshot = syncContext.sync.snapshotSyncMeta(mutableMeta);
+mutableMeta.pendingChanges = 3;
+mutableMeta.sessionTombstones.createdDuringSync = 20;
+assert.equal(sentMetaSnapshot.pendingChanges, 2, "o lote enviado mantém a contagem existente no início da requisição");
+assert.deepEqual(JSON.parse(JSON.stringify(sentMetaSnapshot.sessionTombstones)), { sent: 10 }, "alterações feitas durante o envio não contaminam o retrato do lote");
+const apiSource = fs.readFileSync(path.join(root, "js/api.js"), "utf8");
+assert.match(apiSource, /new AbortController\(\)/, "requisições podem ser canceladas quando ficam presas");
+assert.match(apiSource, /REQUEST_TIMEOUT/, "requisições possuem limite de tempo explícito");
+assert.match(syncSource, /SYNC_TIMEOUT_MS = 30000/, "cada tentativa de sincronização tem limite de 30 segundos");
+assert.match(syncSource, /RETRY_DELAYS_MS = \[3000, 10000, 30000\]/, "falhas temporárias usam novas tentativas graduais");
+assert.match(syncSource, /activeRequestController\?\.abort\(\)/, "sincronização manual reinicia uma tentativa travada");
 
 const safetyContext = {};
 vm.createContext(safetyContext);
@@ -314,7 +326,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.10\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.11\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -325,9 +337,9 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.10\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.10\.0/, "aplicativo inclui o ciclo de estudos");
-assert.match(htmlText, /js\/reorder\.js\?v=2\.10\.0/, "motor de ordenação é carregado antes do aplicativo");
+assert.match(htmlText, /js\/storage\.js\?v=2\.11\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/app\.js\?v=2\.11\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/reorder\.js\?v=2\.11\.0/, "motor de ordenação é carregado antes do aplicativo");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");

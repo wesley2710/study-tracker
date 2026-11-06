@@ -2,6 +2,13 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.11
+
+- Cada tentativa de sincronização é cancelada automaticamente após 30 segundos se o servidor não responder.
+- Falhas temporárias recebem novas tentativas automáticas após 3, 10 e 30 segundos, sem bloquear o uso do site.
+- Clicar no indicador de sincronização reinicia imediatamente uma tentativa que tenha ficado presa.
+- Alterações feitas durante um envio permanecem pendentes para o lote seguinte e não são marcadas como sincronizadas antes da hora.
+
 ## Versão 2.10
 
 - Matérias, temas, subtemas e etapas do ciclo podem ser reorganizados segurando e arrastando a alça.
