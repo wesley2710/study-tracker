@@ -2,6 +2,12 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.13
+
+- Todas as colunas de Desempenho detalhado podem ser ordenadas sem separar os dados da mesma linha.
+- O primeiro clique organiza pelo critério mais útil, o segundo inverte a ordem e o terceiro restaura a prioridade padrão.
+- Filtro e ordenação trabalham juntos, e a preferência fica salva separadamente em cada perfil.
+
 ## Versão 2.12.1
 
 - A Agenda adaptativa agora exibe o tema na primeira linha e o subtema abaixo, em tom discreto, seguindo o mesmo padrão visual do histórico.

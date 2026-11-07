@@ -150,6 +150,7 @@ const consolidationCountEl = document.querySelector("#consolidationCount");
 const maintenanceCountEl = document.querySelector("#maintenanceCount");
 const topicAnalysisBody = document.querySelector("#topicAnalysisBody");
 const topicAnalysisSearch = document.querySelector("#topicAnalysisSearch");
+const topicAnalysisSortButtons = document.querySelectorAll("[data-topic-sort]");
 
 const reviewQueueCountEl = document.querySelector("#reviewQueueCount");
 const reviewListEl = document.querySelector("#reviewList");
@@ -253,6 +254,7 @@ let pendingCatalogConsolidateTopicId = null;
 let syncMeta = SyncStorage.load();
 let safetyState = SafetyStorage.load();
 let uiPreferences = UiStorage.load();
+let topicAnalysisSort = TopicTableSortEngine.normalize(uiPreferences.topicAnalysisSort);
 let activeSection = uiPreferences.activeSection || "dashboard";
 let catalogTopicSelection = new Set();
 let archivedSelection = new Set();
@@ -2273,9 +2275,46 @@ function getPriorityLabel(score) {
   return { label: "Baixa", className: "low" };
 }
 
+const TOPIC_SORT_LABELS = {
+  subject: "Matéria",
+  topic: "Tema → Subtema",
+  questions: "Questões",
+  correct: "Acertos",
+  durationSeconds: "Tempo",
+  percentage: "Percentual",
+  confidence: "Confiança",
+  mastery: "Estado",
+  priority: "Prioridade"
+};
+
+function updateTopicAnalysisSortHeaders() {
+  topicAnalysisSortButtons.forEach((button) => {
+    const key = button.dataset.topicSort;
+    const active = topicAnalysisSort?.key === key;
+    const direction = active ? topicAnalysisSort.direction : null;
+    const label = TOPIC_SORT_LABELS[key] || key;
+    const indicator = button.querySelector(".sort-indicator");
+    const header = button.closest("th");
+    button.classList.toggle("active", active);
+    if (indicator) indicator.textContent = direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕";
+    if (header) header.setAttribute("aria-sort", TopicTableSortEngine.ariaSort(topicAnalysisSort, key));
+    if (!active) {
+      button.title = `Ordenar por ${label.toLowerCase()}`;
+      button.setAttribute("aria-label", `Ordenar por ${label}`);
+    } else if (direction === TopicTableSortEngine.initialDirection(key)) {
+      button.title = `${label}: ${direction === "asc" ? "crescente" : "decrescente"}. Clique para inverter.`;
+      button.setAttribute("aria-label", button.title);
+    } else {
+      button.title = `${label}: ${direction === "asc" ? "crescente" : "decrescente"}. Clique para voltar ao padrão.`;
+      button.setAttribute("aria-label", button.title);
+    }
+  });
+}
+
 function renderTopicAnalytics() {
   const topics = aggregateTopics()
     .sort((a, b) => b.priorityScore - a.priorityScore || (a.percentage ?? 101) - (b.percentage ?? 101));
+  updateTopicAnalysisSortHeaders();
 
   if (!topics.length) {
     weakTopicsCountEl.textContent = "0";
@@ -2334,9 +2373,10 @@ function renderTopicAnalytics() {
   }
 
   const analysisTerm = topicAnalysisSearch?.value.trim().toLowerCase() || "";
-  const visibleTopics = analysisTerm
+  const filteredTopics = analysisTerm
     ? topics.filter((item) => `${item.subject || ""} ${item.topic || ""} ${item.subtopic || ""}`.toLowerCase().includes(analysisTerm))
     : topics;
+  const visibleTopics = TopicTableSortEngine.sort(filteredTopics, topicAnalysisSort);
 
   if (!visibleTopics.length) {
     topicAnalysisBody.innerHTML = `
@@ -3355,6 +3395,12 @@ if (dailyGoalMinutesInput) dailyGoalMinutesInput.addEventListener("change", () =
   renderTodayDashboard();
 });
 if (topicAnalysisSearch) topicAnalysisSearch.addEventListener("input", renderTopicAnalytics);
+topicAnalysisSortButtons.forEach((button) => button.addEventListener("click", () => {
+  topicAnalysisSort = TopicTableSortEngine.cycle(topicAnalysisSort, button.dataset.topicSort);
+  uiPreferences.topicAnalysisSort = topicAnalysisSort;
+  saveUiPreferences();
+  renderTopicAnalytics();
+}));
 
 
 

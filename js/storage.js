@@ -290,11 +290,12 @@ const UiStorage = {
         activeSection: typeof value.activeSection === "string" ? value.activeSection : "dashboard",
         collapsible: value.collapsible && typeof value.collapsible === "object" ? value.collapsible : {},
         openSubjects: Array.isArray(value.openSubjects) ? value.openSubjects : [],
-        openTopics: Array.isArray(value.openTopics) ? value.openTopics : []
+        openTopics: Array.isArray(value.openTopics) ? value.openTopics : [],
+        topicAnalysisSort: value.topicAnalysisSort && typeof value.topicAnalysisSort === "object" ? value.topicAnalysisSort : null
       };
     } catch (error) {
       console.error("Erro ao carregar preferências da interface:", error);
-      return { dailyGoalMinutes: 120, activeSection: "dashboard", collapsible: {}, openSubjects: [], openTopics: [] };
+      return { dailyGoalMinutes: 120, activeSection: "dashboard", collapsible: {}, openSubjects: [], openTopics: [], topicAnalysisSort: null };
     }
   },
   save(value) {
@@ -303,7 +304,8 @@ const UiStorage = {
       activeSection: typeof value?.activeSection === "string" ? value.activeSection : "dashboard",
       collapsible: value?.collapsible || {},
       openSubjects: Array.isArray(value?.openSubjects) ? value.openSubjects : [],
-      openTopics: Array.isArray(value?.openTopics) ? value.openTopics : []
+      openTopics: Array.isArray(value?.openTopics) ? value.openTopics : [],
+      topicAnalysisSort: value?.topicAnalysisSort && typeof value.topicAnalysisSort === "object" ? value.topicAnalysisSort : null
     }));
   },
   clear() { localStorage.removeItem(ProfileStorage.scopedKey(UI_STORAGE_KEY)); }

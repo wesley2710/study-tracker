@@ -535,6 +535,27 @@ th {
   letter-spacing: .08em;
 }
 
+.analytics-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.analytics-sort-button:hover,
+.analytics-sort-button:focus-visible { color: var(--text); }
+.analytics-sort-button.active { color: var(--accent); }
+.analytics-sort-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+.sort-indicator { min-width: 10px; font-size: 12px; line-height: 1; opacity: .58; }
+.analytics-sort-button.active .sort-indicator { opacity: 1; }
+
 td { color: #dbe5ee; }
 
 .badge {

@@ -19,7 +19,7 @@ const storageContext = {
   }
 };
 vm.createContext(storageContext);
-vm.runInContext(`${fs.readFileSync(path.join(root, "js/storage.js"), "utf8")}\nthis.profiles = ProfileStorage; this.studyStore = StudyStorage;`, storageContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/storage.js"), "utf8")}\nthis.profiles = ProfileStorage; this.studyStore = StudyStorage; this.uiStore = UiStorage;`, storageContext);
 assert.equal(storageContext.profiles.getActiveId(), "wesley", "dados existentes pertencem a Wesley por padrão");
 assert.equal(storageContext.studyStore.load()[0].id, "legacy-session", "cache antigo é migrado para Wesley sem perda");
 assert.equal(storageContext.profiles.list().length, 1, "a migração cria somente o perfil Wesley");
@@ -36,6 +36,8 @@ storageContext.profiles.setActiveId("profile-pf");
 assert.equal(storageContext.studyStore.load()[0].id, "pf-session", "dados do novo perfil permanecem isolados");
 assert.equal(storageContext.profiles.setArchived("wesley", true), true, "perfil fora de uso pode ser arquivado");
 assert.equal(storageContext.profiles.setArchived("wesley", false), true, "perfil arquivado pode ser restaurado");
+storageContext.uiStore.save({ topicAnalysisSort: { key: "questions", direction: "desc" } });
+assert.deepEqual(JSON.parse(JSON.stringify(storageContext.uiStore.load().topicAnalysisSort)), { key: "questions", direction: "desc" }, "ordenação do desempenho fica salva no perfil ativo");
 
 const cycleContext = {};
 vm.createContext(cycleContext);
@@ -65,6 +67,35 @@ assert.deepEqual(Array.from(normalizedOrder.subtopics.t1), ["s2", "s1"], "ordem 
 const orderedSubjects = reorderEngine.sortByOrder([{id:"a",name:"A"},{id:"c",name:"C"},{id:"b",name:"B"}], ["b", "a"]);
 assert.deepEqual(Array.from(orderedSubjects, (item) => item.id), ["b", "a", "c"], "itens organizados aparecem antes dos novos itens");
 assert.deepEqual(Array.from(reorderEngine.move(["a", "b", "c"], 0, 2)), ["b", "c", "a"], "motor move itens para a posição escolhida");
+
+const tableSortContext = {};
+vm.createContext(tableSortContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/table-sort.js"), "utf8")}\nthis.tableSort = TopicTableSortEngine;`, tableSortContext);
+const tableSort = tableSortContext.tableSort;
+let tableSortState = tableSort.cycle(null, "questions");
+assert.equal(tableSortState.direction, "desc", "números começam do maior para o menor");
+tableSortState = tableSort.cycle(tableSortState, "questions");
+assert.equal(tableSortState.direction, "asc", "segundo clique inverte a ordem numérica");
+tableSortState = tableSort.cycle(tableSortState, "questions");
+assert.equal(tableSortState, null, "terceiro clique restaura a ordem padrão");
+let textSortState = tableSort.cycle(null, "subject");
+assert.equal(textSortState.direction, "asc", "matéria começa em ordem alfabética crescente");
+textSortState = tableSort.cycle(textSortState, "subject");
+assert.equal(textSortState.direction, "desc", "segundo clique inverte a ordem alfabética");
+assert.equal(tableSort.cycle(textSortState, "subject"), null, "matéria também volta ao padrão no terceiro clique");
+const sortableRows = [
+  { id:"a", subject:"Português", topic:"Gramática", subtopic:"Ortografia", questions:10, correct:8, durationSeconds:3600, percentage:80, confidence:{className:"medium"}, mastery:{className:"consolidation"}, priorityScore:30 },
+  { id:"b", subject:"Direito Previdenciário", topic:"Benefícios", subtopic:"Carência", questions:50, correct:45, durationSeconds:7200, percentage:90, confidence:{className:"high"}, mastery:{className:"maintenance"}, priorityScore:20 },
+  { id:"c", subject:"Direito Previdenciário", topic:"Benefícios", subtopic:"Salário Maternidade", questions:20, correct:10, durationSeconds:1800, percentage:null, confidence:{className:"low"}, mastery:{className:"learning"}, priorityScore:60 }
+];
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"questions", direction:"desc" }), (row) => row.id), ["b", "c", "a"], "ordenar questões move a linha inteira");
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"topic", direction:"asc" }), (row) => row.id), ["b", "c", "a"], "Tema → Subtema considera primeiro o tema e depois o subtema");
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"confidence", direction:"desc" }), (row) => row.id), ["b", "a", "c"], "confiança usa a ordem Alta, Média e Baixa");
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"mastery", direction:"desc" }), (row) => row.id), ["b", "a", "c"], "estado usa a progressão Manutenção, Consolidação e Aprendizado");
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"priority", direction:"desc" }), (row) => row.id), ["c", "a", "b"], "prioridade usa a pontuação que define os níveis exibidos");
+assert.deepEqual(Array.from(tableSort.sort(sortableRows, { key:"percentage", direction:"asc" }), (row) => row.id), ["a", "b", "c"], "assuntos sem percentual permanecem no final");
+const filteredRows = sortableRows.filter((row) => row.subject.includes("Previdenciário"));
+assert.deepEqual(Array.from(tableSort.sort(filteredRows, { key:"questions", direction:"desc" }), (row) => row.id), ["b", "c"], "a ordenação atua somente sobre o resultado filtrado");
 
 assert.equal(engine.getInitialInterval(), 3, "primeira revisão é sempre em 3 dias");
 assert.equal(engine.getInitialInterval(92), 3, "estudo com 92% continua agendando a primeira revisão em 3 dias");
@@ -342,7 +373,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.12\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.13\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -353,10 +384,14 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.12\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/review-archive\.js\?v=2\.12\.0/, "motor de arquivamento de revisões é carregado antes do aplicativo");
-assert.match(htmlText, /js\/app\.js\?v=2\.12\.1/, "aplicativo inclui o ciclo de estudos");
-assert.match(htmlText, /js\/reorder\.js\?v=2\.12\.0/, "motor de ordenação é carregado antes do aplicativo");
+assert.match(htmlText, /js\/storage\.js\?v=2\.13\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/review-archive\.js\?v=2\.13\.0/, "motor de arquivamento de revisões é carregado antes do aplicativo");
+assert.match(htmlText, /js\/app\.js\?v=2\.13\.0/, "aplicativo inclui a ordenação do desempenho");
+assert.match(htmlText, /js\/reorder\.js\?v=2\.13\.0/, "motor de reordenação do catálogo é carregado antes do aplicativo");
+assert.match(htmlText, /js\/table-sort\.js\?v=2\.13\.0/, "motor de ordenação da tabela é carregado antes do aplicativo");
+assert.equal((htmlText.match(/data-topic-sort=/g) || []).length, 9, "todas as colunas do desempenho detalhado são clicáveis");
+assert.match(appText, /const filteredTopics[\s\S]*TopicTableSortEngine\.sort\(filteredTopics, topicAnalysisSort\)/, "filtro é aplicado antes da ordenação");
+assert.match(appText, /TopicTableSortEngine\.cycle[\s\S]*uiPreferences\.topicAnalysisSort[\s\S]*saveUiPreferences/, "ordenação ativa é persistida por perfil");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
