@@ -154,6 +154,8 @@ const topicAnalysisSearch = document.querySelector("#topicAnalysisSearch");
 const reviewQueueCountEl = document.querySelector("#reviewQueueCount");
 const reviewListEl = document.querySelector("#reviewList");
 const reviewScheduleBody = document.querySelector("#reviewScheduleBody");
+const archivedReviewCount = document.querySelector("#archivedReviewCount");
+const archivedReviewPlansList = document.querySelector("#archivedReviewPlansList");
 const reviewHistoryBody = document.querySelector("#reviewHistoryBody");
 const reviewFilterButtons = document.querySelectorAll("[data-review-filter]");
 const reviewModal = document.querySelector("#reviewModal");
@@ -1825,7 +1827,8 @@ function buildReviewSchedule() {
     };
   });
   const reviewSettings = getReviewSettings();
-  return ReviewPlanner.plan(baseSchedule, reviewPlans, {
+  const activeSchedule = baseSchedule.filter((item) => !ReviewArchiveEngine.isKeyArchived(reviewPlans, item.key));
+  return ReviewPlanner.plan(activeSchedule, reviewPlans, {
     today: toISODate(),
     capacity: reviewSettings.dailyReviewLimit,
     minimumQuestions: reviewSettings.minimumQuestions
@@ -1925,9 +1928,72 @@ function renderReviewSchedule() {
       <td>${item.interval} dia${item.interval === 1 ? "" : "s"}${item.intervalReason ? `<small class="interval-reason">${escapeHtml(item.intervalReason)}</small>` : ""}</td>
       <td>${formatDate(item.nextDate)}${item.redistributed ? `<small class="interval-reason review-plan-note">Original: ${formatDate(item.originalDueDate)}</small>` : ""}</td>
       <td><span class="review-status ${item.status}">${ReviewEngine.getStatusLabel(item.status)}</span></td>
-      <td><div class="review-item-actions"><button class="table-button" data-review-action="postpone" data-review-key="${escapeAttribute(item.key)}">Adiar</button><button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Registrar</button></div></td>
+      <td><div class="review-item-actions"><button class="table-button" data-review-action="postpone" data-review-key="${escapeAttribute(item.key)}">Adiar</button><button class="table-button" data-review-action="complete" data-review-key="${escapeAttribute(item.key)}">Registrar</button><button class="table-button danger" data-review-action="archive" data-review-key="${escapeAttribute(item.key)}">Arquivar</button></div></td>
     </tr>
   `).join("");
+}
+
+function reviewKeyParts(reviewKey) {
+  const [subject = "", topic = "", subtopic = ""] = String(reviewKey || "").split("|||");
+  return { subject, topic, subtopic };
+}
+
+function reviewArchiveImpact(reviewKey) {
+  const { subject, topic, subtopic } = reviewKeyParts(reviewKey);
+  const topicSessions = sessions.filter((item) => item.subject === subject && item.topic === topic && (item.subtopic || "") === subtopic);
+  const topicReviews = reviews.filter((item) => item.subject === subject && item.topic === topic && (item.subtopic || "") === subtopic);
+  return {
+    sessions: topicSessions.length,
+    reviews: topicReviews.length,
+    questions: topicSessions.reduce((sum, item) => sum + Number(item.questions || 0), 0),
+    durationSeconds: topicSessions.reduce((sum, item) => sum + Number(item.durationSeconds || 0), 0)
+  };
+}
+
+function archiveScheduledReview(reviewKey) {
+  const item = buildReviewSchedule().find((entry) => entry.key === reviewKey);
+  if (!item) return;
+  const impact = reviewArchiveImpact(reviewKey);
+  const label = item.subtopic || item.topic;
+  const summary = `${impact.sessions} sessões • ${formatDuration(impact.durationSeconds)} • ${formatNumber(impact.questions)} questões • ${impact.reviews} revisões concluídas`;
+  if (!window.confirm(`Arquivar a programação de “${label}”?\n\n${summary}\n\nEla deixará de aparecer na agenda, mas todo o histórico e as estatísticas serão preservados.`)) return;
+  if (!captureUndo(`Arquivamento da revisão: ${label}`)) return;
+  reviewPlans = ReviewArchiveEngine.archive(reviewPlans, item, Date.now());
+  ReviewPlanStorage.save(reviewPlans);
+  addAuditEntry("archive", `Revisão arquivada: ${label}`, summary);
+  renderAll();
+  StudySync.run(true);
+  showToast("Programação arquivada sem apagar o histórico.", "success");
+}
+
+function restoreArchivedReview(reviewKey, { confirm = true } = {}) {
+  if (!ReviewArchiveEngine.isKeyArchived(reviewPlans, reviewKey)) return false;
+  const { subject, topic, subtopic } = reviewKeyParts(reviewKey);
+  const label = subtopic || topic;
+  if (confirm && !window.confirm(`Restaurar a programação de “${label}”?\n\nA revisão voltará para a agenda adaptativa.`)) return false;
+  if (confirm && !captureUndo(`Restauração da revisão: ${label}`)) return false;
+  reviewPlans = ReviewArchiveEngine.restore(reviewPlans, reviewKey, Date.now());
+  ReviewPlanStorage.save(reviewPlans);
+  addAuditEntry("restore", `Revisão restaurada: ${label}`, `${subject} → ${topic}${subtopic ? ` → ${subtopic}` : ""}`);
+  if (confirm) {
+    renderAll();
+    StudySync.run(true);
+    showToast("Programação de revisão restaurada.", "success");
+  }
+  return true;
+}
+
+function renderArchivedReviewPlans() {
+  if (!archivedReviewPlansList || !archivedReviewCount) return;
+  const items = ReviewArchiveEngine.list(reviewPlans);
+  archivedReviewCount.textContent = items.length;
+  archivedReviewPlansList.innerHTML = items.length ? items.map((plan) => {
+    const { subject, topic, subtopic } = reviewKeyParts(plan.reviewKey);
+    return `<div class="archived-review-row">
+      <div><strong>${escapeHtml(subtopic || topic)}</strong><small>${escapeHtml(subject)}${subtopic ? ` → ${escapeHtml(topic)}` : ""} • arquivada em ${formatAuditTime(plan.updatedAt)}</small></div>
+      <button class="ghost-button" type="button" data-review-action="restore" data-review-key="${escapeAttribute(plan.reviewKey)}">Restaurar</button>
+    </div>`;
+  }).join("") : `<div class="empty-state compact"><strong>Nenhuma revisão arquivada</strong><span>Programações arquivadas aparecerão aqui e poderão ser restauradas.</span></div>`;
 }
 
 function renderReviewHistory() {
@@ -2874,17 +2940,24 @@ function closeCatalogConsolidateNow() {
 
 function applyCatalogSubtopicConsolidation(topicId, subtopicIds) {
   const impact = getSubtopicConsolidationImpact(topicId, subtopicIds);
-  const consolidated = CatalogEngine.consolidateSubtopics({ sessions, reviews, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], reviewPlans }, { topicId, subtopicIds, timestamp: Date.now() });
+  const subject = catalog.subjects.find((item) => item.id === impact.topic?.subjectId);
+  const parentReviewKey = subject && impact.topic ? getTopicKey(subject.name, impact.topic.name, "") : "";
+  const restoreParentReview = Boolean(parentReviewKey && ReviewArchiveEngine.isKeyArchived(reviewPlans, parentReviewKey) && window.confirm(
+    `A revisão geral de “${impact.topic.name}” está arquivada.\n\nDeseja restaurá-la ao consolidar os subtemas?\n\nOK: a revisão geral volta para a agenda.\nCancelar: a consolidação será feita, mas a programação continuará arquivada.`
+  ));
+  const timestamp = Date.now();
+  const consolidated = CatalogEngine.consolidateSubtopics({ sessions, reviews, subjects: catalog.subjects, topics: catalog.topics, subtopics: catalog.subtopics || [], reviewPlans }, { topicId, subtopicIds, timestamp });
   if (!consolidated.changed) { showToast("Selecione ao menos um subtema válido.", "error"); return false; }
   if (!captureUndo(`Consolidação de subtemas em ${impact.topic.name}`)) return false;
   sessions = consolidated.sessions;
   reviews = consolidated.reviews;
-  reviewPlans = consolidated.reviewPlans;
+  reviewPlans = restoreParentReview ? ReviewArchiveEngine.restore(consolidated.reviewPlans, parentReviewKey, timestamp) : consolidated.reviewPlans;
   catalog = { subjects: consolidated.subjects, topics: consolidated.topics, subtopics: consolidated.subtopics };
   StudyStorage.save(sessions);
   ReviewStorage.save(reviews);
   ReviewPlanStorage.save(reviewPlans);
   addAuditEntry("merge", `${consolidated.summary.consolidatedSubtopicIds.length} subtema(s) consolidado(s)`, `${consolidated.summary.consolidatedSubtopicNames.join(", ")} → ${consolidated.summary.topicName} • ${impact.sessions} sessões • ${formatDuration(impact.durationSeconds)} • ${formatNumber(impact.questions)} questões • ${impact.reviews} revisões`);
+  if (restoreParentReview) addAuditEntry("restore", `Revisão geral restaurada: ${impact.topic.name}`, "A programação voltou para a agenda após a consolidação dos subtemas.");
   saveCatalogAndRefresh(`Subtemas consolidados em ${consolidated.summary.topicName} sem perder o histórico.`);
   return true;
 }
@@ -2998,6 +3071,7 @@ function renderAll() {
   renderTopicAnalytics();
   renderReviewQueue();
   renderReviewSchedule();
+  renderArchivedReviewPlans();
   renderReviewHistory();
   renderReviewForecast();
   renderTimeDashboard();
@@ -3363,7 +3437,47 @@ if (archiveSelectedTopicsButton) archiveSelectedTopicsButton.addEventListener("c
 if (mergeSelectedTopicsButton) mergeSelectedTopicsButton.addEventListener("click", mergeSelectedTopics);
 if (clearCatalogSelectionButton) clearCatalogSelectionButton.addEventListener("click", () => { catalogTopicSelection.clear(); renderCatalog(); });
 if (catalogList) {
-  catalogList.addEventListener("submit", (event) => { const form=event.target.closest(".topic-catalog-form, .subtopic-catalog-form"); if(!form)return; event.preventDefault(); const name=normalizeCatalogName(form.elements.name.value); if(!name)return; const now=Date.now(); if(form.classList.contains("topic-catalog-form")){ const subjectId=form.closest(".catalog-subject").dataset.subjectId; if(catalogNameExists(catalog.topics,name,(x)=>x.subjectId===subjectId)){showToast("Esse tema já existe nessa matéria.","error");return;} if(!captureUndo(`Criação de tema: ${name}`))return; catalog.topics.push({id:createId(),subjectId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Tema criado: ${name}`); saveCatalogAndRefresh("Tema adicionado."); } else { const topicId=form.closest(".catalog-topic").dataset.topicId; if(catalogNameExists(catalog.subtopics,name,(x)=>x.topicId===topicId)){showToast("Esse subtema já existe nesse tema.","error");return;} if(!captureUndo(`Criação de subtema: ${name}`))return; catalog.subtopics.push({id:createId(),topicId,name,archived:false,createdAt:now,updatedAt:now}); addAuditEntry("create",`Subtema criado: ${name}`); saveCatalogAndRefresh("Subtema adicionado."); } });
+  catalogList.addEventListener("submit", (event) => {
+    const form = event.target.closest(".topic-catalog-form, .subtopic-catalog-form");
+    if (!form) return;
+    event.preventDefault();
+    const name = normalizeCatalogName(form.elements.name.value);
+    if (!name) return;
+    const now = Date.now();
+
+    if (form.classList.contains("topic-catalog-form")) {
+      const subjectId = form.closest(".catalog-subject").dataset.subjectId;
+      if (catalogNameExists(catalog.topics, name, (item) => item.subjectId === subjectId)) { showToast("Esse tema já existe nessa matéria.", "error"); return; }
+      if (!captureUndo(`Criação de tema: ${name}`)) return;
+      catalog.topics.push({ id:createId(), subjectId, name, archived:false, createdAt:now, updatedAt:now });
+      addAuditEntry("create", `Tema criado: ${name}`);
+      saveCatalogAndRefresh("Tema adicionado.");
+      return;
+    }
+
+    const topicId = form.closest(".catalog-topic").dataset.topicId;
+    if (catalogNameExists(catalog.subtopics, name, (item) => item.topicId === topicId)) { showToast("Esse subtema já existe nesse tema.", "error"); return; }
+    const topic = catalog.topics.find((item) => item.id === topicId && !item.archived);
+    const subject = catalog.subjects.find((item) => item.id === topic?.subjectId && !item.archived);
+    const hasActiveSubtopics = catalog.subtopics.some((item) => item.topicId === topicId && !item.archived);
+    const parentReviewKey = subject && topic ? getTopicKey(subject.name, topic.name, "") : "";
+    const parentSchedule = !hasActiveSubtopics && parentReviewKey
+      ? buildReviewSchedule().find((item) => item.key === parentReviewKey)
+      : null;
+    const archiveParentReview = Boolean(parentSchedule && window.confirm(
+      `“${topic.name}” possui uma revisão própria programada.\n\nDeseja arquivá-la e continuar as próximas revisões pelos subtemas?\n\nOK: arquivar a programação do tema.\nCancelar: manter a revisão do tema e criar o subtema mesmo assim.`
+    ));
+    const undoLabel = archiveParentReview ? `Criação de subtema e arquivamento da revisão: ${name}` : `Criação de subtema: ${name}`;
+    if (!captureUndo(undoLabel)) return;
+    catalog.subtopics.push({ id:createId(), topicId, name, archived:false, createdAt:now, updatedAt:now });
+    addAuditEntry("create", `Subtema criado: ${name}`);
+    if (archiveParentReview) {
+      reviewPlans = ReviewArchiveEngine.archive(reviewPlans, parentSchedule, now);
+      ReviewPlanStorage.save(reviewPlans);
+      addAuditEntry("archive", `Revisão do tema arquivada: ${topic.name}`, `O subtema ${name} passa a ter sua própria programação após ser estudado.`);
+    }
+    saveCatalogAndRefresh(archiveParentReview ? "Subtema adicionado e revisão do tema arquivada." : "Subtema adicionado.");
+  });
   catalogList.addEventListener("click", (event) => { if(event.target.closest(".catalog-select")){event.stopPropagation();return;} const button=event.target.closest("[data-catalog-action]"); if(!button)return; event.preventDefault(); const subjectNode=button.closest(".catalog-subject"); const topicNode=button.closest(".catalog-topic"); const subtopicNode=button.closest(".catalog-subtopic"); const action=button.dataset.catalogAction; if(action==="correct-merge")openCatalogMergeCorrection(subjectNode.dataset.subjectId); if(action==="merge-topics")openCatalogMerge(subjectNode.dataset.subjectId); if(action==="consolidate-subtopics")openCatalogSubtopicConsolidation(topicNode.dataset.topicId); if(action==="rename-subject")renameCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="archive-subject")archiveCatalogRecord("subject",subjectNode.dataset.subjectId); if(action==="rename-topic")renameCatalogRecord("topic",topicNode.dataset.topicId); if(action==="archive-topic")archiveCatalogRecord("topic",topicNode.dataset.topicId); if(action==="rename-subtopic")renameCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); if(action==="archive-subtopic")archiveCatalogRecord("subtopic",subtopicNode.dataset.subtopicId); });
   catalogList.addEventListener("change", (event) => { const checkbox=event.target.closest("[data-topic-select]"); if(!checkbox)return; if(checkbox.checked)catalogTopicSelection.add(checkbox.dataset.topicSelect);else catalogTopicSelection.delete(checkbox.dataset.topicSelect); renderCatalogBulkActions(); });
   catalogList.addEventListener("toggle", (event) => { const details=event.target; if(!details.matches?.(".catalog-subject,.catalog-topic") || catalogSearch.value.trim())return; const key=details.matches(".catalog-subject")?"openSubjects":"openTopics"; const id=details.matches(".catalog-subject")?details.dataset.subjectId:details.dataset.topicId; const values=new Set(uiPreferences[key]); if(details.open)values.add(id);else values.delete(id); uiPreferences[key]=[...values]; saveUiPreferences(); }, true);
@@ -3604,6 +3718,10 @@ cancelPostponeReviewButton?.addEventListener("click", closePostponeReview);
 postponeReviewModal?.addEventListener("click", (event) => { if (event.target === postponeReviewModal) closePostponeReview(); });
 
 document.addEventListener("click", (event) => {
+  const archiveButton = event.target.closest("[data-review-action='archive']");
+  if (archiveButton) { archiveScheduledReview(archiveButton.dataset.reviewKey); return; }
+  const restoreButton = event.target.closest("[data-review-action='restore']");
+  if (restoreButton) { restoreArchivedReview(restoreButton.dataset.reviewKey); return; }
   const postponeButton = event.target.closest("[data-review-action='postpone']");
   if (postponeButton) { openPostponeReview(postponeButton.dataset.reviewKey); return; }
   const button = event.target.closest("[data-review-action='complete']");

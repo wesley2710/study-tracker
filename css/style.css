@@ -1641,6 +1641,14 @@ select { font: inherit; }
 .forecast-day .forecast-moved{color:#e6b557;margin-top:4px}
 .review-item-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .review-plan-note{color:#e6b557!important}
+.archived-reviews-panel{margin-top:18px}
+.archived-reviews-panel .panel-header small{display:block;margin-top:5px;color:var(--muted)}
+.archived-reviews-panel h3{display:flex;align-items:center;gap:9px}
+.archived-review-plans-list{display:grid;gap:10px;padding-top:16px}
+.archived-review-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.018)}
+.archived-review-row>div{display:grid;gap:5px;min-width:0}
+.archived-review-row strong{color:var(--text)}
+.archived-review-row small{color:var(--muted);line-height:1.4}
 
 /* Tema claro */
 :root[data-theme="light"] body {
@@ -1673,6 +1681,7 @@ select { font: inherit; }
 :root[data-theme="light"] .merge-source-option,
 :root[data-theme="light"] .safety-card,
 :root[data-theme="light"] .archived-row,
+:root[data-theme="light"] .archived-review-row,
 :root[data-theme="light"] .forecast-day { background:rgba(37,99,235,.025); }
 :root[data-theme="light"] .mode-option input:checked + span { border-color:var(--border-strong); }
 :root[data-theme="light"] .modal-backdrop { background:rgba(28,39,58,.34); }
@@ -1711,4 +1720,6 @@ select { font: inherit; }
   .forecast-day{flex:0 0 105px;scroll-snap-align:start}
   .review-item-actions{width:100%;justify-content:stretch}
   .review-item-actions button{flex:1}
+  .archived-review-row{align-items:stretch;flex-direction:column}
+  .archived-review-row button{width:100%}
 }

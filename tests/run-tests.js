@@ -112,6 +112,22 @@ assert.equal(planned.filter((item) => item.redistributed).length, 2, "itens desl
 const manualPlan = planner.plan(overloaded.slice(0, 2), [{ reviewKey: "r0", originalDueDate: "2026-10-09", plannedDate: "2026-10-12" }], { today: "2026-10-09", capacity: 4, minimumQuestions: 10 });
 assert.equal(manualPlan.find((item) => item.key === "r0").plannedDate, "2026-10-12", "adiamento manual preserva a data escolhida");
 
+const archiveContext = {};
+vm.createContext(archiveContext);
+vm.runInContext(`${fs.readFileSync(path.join(root, "js/review-archive.js"), "utf8")}\nthis.archiveEngine = ReviewArchiveEngine;`, archiveContext);
+const archiveEngine = archiveContext.archiveEngine;
+const themeSchedule = { key:"Português|||Gramática e Morfossintaxe|||", originalDueDate:"2026-11-10", nextDate:"2026-11-10", manualDeferred:false };
+let archivedPlans = archiveEngine.archive([], themeSchedule, 1000);
+assert.equal(archiveEngine.isKeyArchived(archivedPlans, themeSchedule.key), true, "programação arquivada deixa a chave marcada como inativa");
+assert.equal(archiveEngine.list(archivedPlans).length, 1, "revisões arquivadas são listadas sem duplicidade");
+let restoredPlans = archiveEngine.restore(archivedPlans, themeSchedule.key, 2000);
+assert.equal(archiveEngine.isKeyArchived(restoredPlans, themeSchedule.key), false, "programação pode ser restaurada sem recriar o histórico");
+const manualSchedule = { key:"Português|||Interpretação|||", originalDueDate:"2026-11-10", nextDate:"2026-11-13", manualDeferred:true };
+archivedPlans = archiveEngine.archive([{ id:`review-plan:${manualSchedule.key}`, reviewKey:manualSchedule.key, originalDueDate:"2026-11-10", plannedDate:"2026-11-13", reason:"manual", createdAt:500, updatedAt:500 }], manualSchedule, 1000);
+restoredPlans = archiveEngine.restore(archivedPlans, manualSchedule.key, 2000);
+assert.equal(restoredPlans[0].reason, "manual", "restaurar preserva um adiamento manual que existia antes do arquivamento");
+assert.equal(restoredPlans[0].plannedDate, "2026-11-13", "data adiada permanece intacta após arquivar e restaurar");
+
 const syncContext = {
   window: { addEventListener() {} }, navigator: { onLine: true },
   StudyApi: { isConfigured: () => false }, clearTimeout() {}, setTimeout() {}
@@ -326,7 +342,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.11\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.12\.0/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -337,9 +353,10 @@ assert.match(htmlText, /id="catalogBulkActions"/, "cadastro possui ações em lo
 assert.match(htmlText, /id="restoreSelectedArchived"/, "central permite restauração em lote");
 assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[\s\S]*id="historyContextFilter"[\s\S]*id="historyStartDate"[\s\S]*id="historyEndDate"/, "histórico possui filtros de matéria, tema, contexto e período");
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
-assert.match(htmlText, /js\/storage\.js\?v=2\.11\.0/, "armazenamento usa chaves separadas por perfil");
-assert.match(htmlText, /js\/app\.js\?v=2\.11\.0/, "aplicativo inclui o ciclo de estudos");
-assert.match(htmlText, /js\/reorder\.js\?v=2\.11\.0/, "motor de ordenação é carregado antes do aplicativo");
+assert.match(htmlText, /js\/storage\.js\?v=2\.12\.0/, "armazenamento usa chaves separadas por perfil");
+assert.match(htmlText, /js\/review-archive\.js\?v=2\.12\.0/, "motor de arquivamento de revisões é carregado antes do aplicativo");
+assert.match(htmlText, /js\/app\.js\?v=2\.12\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/reorder\.js\?v=2\.12\.0/, "motor de ordenação é carregado antes do aplicativo");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
@@ -400,6 +417,9 @@ assert.match(appText, /activateSection\("registrar"\)/, "atalhos de estudo abrem
 assert.match(appText, /Selecione um tema/, "vocabulário Matéria → Tema → Subtema foi padronizado");
 assert.match(appText, /function renderTodayDashboard\(/, "resumo Hoje possui renderização própria");
 assert.match(appText, /function archiveSelectedTopics\(/, "arquivamento em lote está implementado");
+assert.match(htmlText, /id="archivedReviewPlansList"/, "aba de revisões possui lista restaurável de programações arquivadas");
+assert.match(appText, /ReviewArchiveEngine\.isKeyArchived\(reviewPlans, item\.key\)/, "programações arquivadas são removidas da agenda adaptativa");
+assert.match(appText, /possui uma revisão própria programada[\s\S]*continuar as próximas revisões pelos subtemas/, "primeiro subtema oferece arquivamento assistido da revisão do tema");
 assert.match(appText, /function mergeSelectedTopics\(/, "mesclagem em lote valida os temas selecionados");
 assert.match(appText, /function restoreSelectedArchivedItems\(/, "restauração em lote está implementada");
 assert.match(appText, /uiPreferences\.collapsible\[targetId\] = expanded/, "estado dos painéis recolhíveis é memorizado");

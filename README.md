@@ -2,6 +2,14 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.12
+
+- Programações de revisão podem ser arquivadas sem apagar sessões, horas, questões, desempenho ou revisões concluídas.
+- A área Revisões arquivadas permite restaurar qualquer programação pausada.
+- Ao criar o primeiro subtema, o sistema oferece arquivar a revisão geral do tema para evitar agendas duplicadas.
+- Ao consolidar subtemas, o sistema oferece restaurar a revisão geral do tema.
+- Arquivamento e restauração participam do backup, da sincronização, do histórico de alterações e do desfazer.
+
 ## Versão 2.11
 
 - Cada tentativa de sincronização é cancelada automaticamente após 30 segundos se o servidor não responder.
