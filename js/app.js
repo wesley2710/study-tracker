@@ -263,6 +263,7 @@ let activeReviewFilter = 'today';
 let activeTimeFilter = 'today';
 let exactTimeDate = '';
 let activeChartPeriod = '30';
+let topicAnalysisSubjectFilter = '';
 let activeTimer = TimerStorage.load();
 let timerTick = null;
 let activeProfile = ProfileStorage.getActiveProfile();
@@ -1030,9 +1031,12 @@ function renderSubjectPerformance() {
 
   subjectPerformance.innerHTML = rows.map((item) => `
     <div class="subject-row ${classify(item.percentage).className}">
-      <div>
-        <strong>${escapeHtml(item.name)}</strong>
-        <span>${formatPercent(item.percentage)} • ${formatNumber(item.q)} questões</span>
+      <div class="subject-row-main">
+        <div class="subject-row-summary">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${formatPercent(item.percentage)} • ${formatNumber(item.q)} questões</span>
+        </div>
+        <button class="subject-detail-button" type="button" data-subject-detail="${escapeAttribute(item.name)}" aria-label="Ver desempenho detalhado de ${escapeAttribute(item.name)}">Ver detalhes</button>
       </div>
       <div class="progress"><i style="width:${Math.max(0, Math.min(item.percentage, 100))}%"></i></div>
     </div>
@@ -2372,10 +2376,13 @@ function renderTopicAnalytics() {
     `).join("");
   }
 
+  const subjectFilteredTopics = topicAnalysisSubjectFilter
+    ? topics.filter((item) => item.subject === topicAnalysisSubjectFilter)
+    : topics;
   const analysisTerm = topicAnalysisSearch?.value.trim().toLowerCase() || "";
   const filteredTopics = analysisTerm
-    ? topics.filter((item) => `${item.subject || ""} ${item.topic || ""} ${item.subtopic || ""}`.toLowerCase().includes(analysisTerm))
-    : topics;
+    ? subjectFilteredTopics.filter((item) => `${item.subject || ""} ${item.topic || ""} ${item.subtopic || ""}`.toLowerCase().includes(analysisTerm))
+    : subjectFilteredTopics;
   const visibleTopics = TopicTableSortEngine.sort(filteredTopics, topicAnalysisSort);
 
   if (!visibleTopics.length) {
@@ -3394,7 +3401,10 @@ if (dailyGoalMinutesInput) dailyGoalMinutesInput.addEventListener("change", () =
   saveUiPreferences();
   renderTodayDashboard();
 });
-if (topicAnalysisSearch) topicAnalysisSearch.addEventListener("input", renderTopicAnalytics);
+if (topicAnalysisSearch) topicAnalysisSearch.addEventListener("input", () => {
+  topicAnalysisSubjectFilter = "";
+  renderTopicAnalytics();
+});
 topicAnalysisSortButtons.forEach((button) => button.addEventListener("click", () => {
   topicAnalysisSort = TopicTableSortEngine.cycle(topicAnalysisSort, button.dataset.topicSort);
   uiPreferences.topicAnalysisSort = topicAnalysisSort;
@@ -3648,10 +3658,19 @@ document.querySelectorAll("[data-collapse-target]").forEach((button) => {
   });
 });
 
-if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => {
+function openSubjectPerformanceDetails(subjectName = "") {
+  topicAnalysisSubjectFilter = subjectName;
+  if (topicAnalysisSearch) topicAnalysisSearch.value = subjectName;
   activateSection("desempenho");
   setCollapsibleExpanded("topicAnalysisContent", true);
-  document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  renderTopicAnalytics();
+  window.requestAnimationFrame(() => document.querySelector(".topic-analysis-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+}
+
+if (performanceDetailsButton) performanceDetailsButton.addEventListener("click", () => openSubjectPerformanceDetails());
+if (subjectPerformance) subjectPerformance.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-subject-detail]");
+  if (button) openSubjectPerformanceDetails(button.dataset.subjectDetail || "");
 });
 if (timeExactDate) timeExactDate.addEventListener("change", () => { if (!timeExactDate.value) return; exactTimeDate = timeExactDate.value; activeTimeFilter = "exact"; timeFilterButtons.forEach((item) => item.classList.remove("active")); renderTimeDashboard(); });
 timeFilterButtons.forEach((button) => {

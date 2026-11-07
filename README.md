@@ -2,6 +2,11 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.13.1
+
+- Cada matéria do Resumo por matéria possui um atalho que abre o Desempenho detalhado já filtrado por aquela matéria.
+- O atalho geral continua mostrando todas as matérias e limpa qualquer filtro individual anterior.
+
 ## Versão 2.13
 
 - Todas as colunas de Desempenho detalhado podem ser ordenadas sem separar os dados da mesma linha.

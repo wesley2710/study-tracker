@@ -373,7 +373,7 @@ assert.match(htmlText, /id="exportBackup"/, "central de segurança exporta backu
 assert.match(htmlText, /id="backupFileInput"/, "central de segurança aceita arquivo de restauração");
 assert.match(htmlText, /id="undoLastAction"/, "central de segurança oferece desfazer");
 assert.match(htmlText, /id="auditLogList"/, "histórico de alterações está presente");
-assert.match(htmlText, /js\/safety\.js\?v=2\.13\.0/, "backup identifica o perfil da versão atual");
+assert.match(htmlText, /js\/safety\.js\?v=2\.13\.1/, "backup identifica o perfil da versão atual");
 assert.match(htmlText, /id="dashboard"/, "a tela Hoje é o primeiro destino da navegação");
 assert.match(htmlText, /id="todayStartTimer"/, "tela Hoje inicia o cronômetro sem navegação manual");
 assert.match(htmlText, /id="todayRegisterStudy"/, "tela Hoje possui atalho para registrar estudo");
@@ -386,12 +386,16 @@ assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
 assert.match(htmlText, /js\/storage\.js\?v=2\.13\.0/, "armazenamento usa chaves separadas por perfil");
 assert.match(htmlText, /js\/review-archive\.js\?v=2\.13\.0/, "motor de arquivamento de revisões é carregado antes do aplicativo");
-assert.match(htmlText, /js\/app\.js\?v=2\.13\.0/, "aplicativo inclui a ordenação do desempenho");
+assert.match(htmlText, /js\/app\.js\?v=2\.13\.1/, "aplicativo inclui os atalhos de desempenho por matéria");
 assert.match(htmlText, /js\/reorder\.js\?v=2\.13\.0/, "motor de reordenação do catálogo é carregado antes do aplicativo");
 assert.match(htmlText, /js\/table-sort\.js\?v=2\.13\.0/, "motor de ordenação da tabela é carregado antes do aplicativo");
 assert.equal((htmlText.match(/data-topic-sort=/g) || []).length, 9, "todas as colunas do desempenho detalhado são clicáveis");
 assert.match(appText, /const filteredTopics[\s\S]*TopicTableSortEngine\.sort\(filteredTopics, topicAnalysisSort\)/, "filtro é aplicado antes da ordenação");
 assert.match(appText, /TopicTableSortEngine\.cycle[\s\S]*uiPreferences\.topicAnalysisSort[\s\S]*saveUiPreferences/, "ordenação ativa é persistida por perfil");
+assert.match(appText, /data-subject-detail=.*Ver detalhes/, "cada matéria do resumo possui seu próprio atalho de detalhes");
+assert.match(appText, /topicAnalysisSubjectFilter[\s\S]*item\.subject === topicAnalysisSubjectFilter/, "atalho aplica um filtro exato por matéria");
+assert.match(appText, /performanceDetailsButton[\s\S]*openSubjectPerformanceDetails\(\)/, "atalho geral limpa o filtro e mostra todos os assuntos");
+assert.match(appText, /setCollapsibleExpanded\("topicAnalysisContent", true\)[\s\S]*scrollIntoView/, "atalho expande e leva a tela ao desempenho detalhado");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
 assert.match(htmlText, /id="profileSwitcher"[\s\S]*id="manageProfilesButton"/, "topo permite trocar e gerenciar perfis");
