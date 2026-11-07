@@ -2,6 +2,10 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.12.1
+
+- A Agenda adaptativa agora exibe o tema na primeira linha e o subtema abaixo, em tom discreto, seguindo o mesmo padrão visual do histórico.
+
 ## Versão 2.12
 
 - Programações de revisão podem ser arquivadas sem apagar sessões, horas, questões, desempenho ou revisões concluídas.

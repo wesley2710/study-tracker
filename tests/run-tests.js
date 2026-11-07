@@ -355,7 +355,7 @@ assert.match(htmlText, /id="historySubjectFilter"[\s\S]*id="historyTopicFilter"[
 assert.match(htmlText, /js\/catalog\.js\?v=2\.0\.2/, "cache do catálogo foi atualizado para consolidação de subtemas");
 assert.match(htmlText, /js\/storage\.js\?v=2\.12\.0/, "armazenamento usa chaves separadas por perfil");
 assert.match(htmlText, /js\/review-archive\.js\?v=2\.12\.0/, "motor de arquivamento de revisões é carregado antes do aplicativo");
-assert.match(htmlText, /js\/app\.js\?v=2\.12\.0/, "aplicativo inclui o ciclo de estudos");
+assert.match(htmlText, /js\/app\.js\?v=2\.12\.1/, "aplicativo inclui o ciclo de estudos");
 assert.match(htmlText, /js\/reorder\.js\?v=2\.12\.0/, "motor de ordenação é carregado antes do aplicativo");
 assert.match(htmlText, /Como a pontuação de prioridade é calculada/, "diagnóstico possui ajuda geral acessível");
 assert.match(htmlText, /Critério de Aprendizado[\s\S]*Critério de Consolidação[\s\S]*Critério de Manutenção/, "cada estado de domínio explica seu critério");
@@ -393,7 +393,7 @@ assert.match(htmlText, /class="panel safety-panel page-view" id="seguranca-dados
 assert.match(appText, /activeTimeFilter === "exact".*sessionDateValue === exactTimeDate/, "filtro exato usa a data normalizada e isola o dia selecionado");
 assert.match(appText, /current\.durationSeconds \+= Number\(session\.durationSeconds \|\| 0\)/, "tempo detalhado é acumulado por assunto");
 assert.match(appText, /getTopicKey\(session\.subject, session\.topic, session\.subtopic \|\| ""\)/, "subtemas possuem unidade de revisão independente");
-assert.match(appText, /escapeHtml\(item\.subtopic \|\| item\.topic\)/, "agenda mostra o subtema quando ele existe e o tema somente como alternativa");
+assert.match(appText, /reviewScheduleBody\.innerHTML[\s\S]*escapeHtml\(item\.topic\)[\s\S]*class="table-subtopic"[\s\S]*escapeHtml\(item\.subtopic\)/, "agenda mostra o tema e, quando existir, o subtema em uma segunda linha");
 assert.match(appText, /escapeHtml\(review\.subtopic \|\| review\.topic\)/, "histórico mostra a unidade exata que foi revisada");
 assert.match(appText, /catalog\.subtopics.*topicId/, "catálogo mantém terceiro nível por ID do tema");
 assert.match(appText, /if\(type==="subject"\).*catalog\.topics.*catalog\.subtopics/s, "arquivamento de matéria arquiva descendentes");
