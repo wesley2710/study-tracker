@@ -2,6 +2,12 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.13.2
+
+- A Prioridade Inteligente agora mostra o tema e, quando existir, o subtema em uma segunda linha discreta.
+- Programações de revisão e itens do catálogo arquivados deixam de aparecer nas recomendações, sem apagar histórico, horas ou questões.
+- O Resumo do momento segue a mesma hierarquia visual da lista de prioridades.
+
 ## Versão 2.13.1
 
 - Cada matéria do Resumo por matéria possui um atalho que abre o Desempenho detalhado já filtrado por aquela matéria.

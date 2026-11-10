@@ -1284,8 +1284,30 @@ function compareSmartRecommendations(a, b) {
     || (a.subtopic || a.topic).localeCompare(b.subtopic || b.topic, "pt-BR");
 }
 
+function isSmartRecommendationCatalogItemActive(item) {
+  const subject = catalog.subjects.find((entry) => entry.id === item.subjectId)
+    || catalog.subjects.find((entry) => entry.name === item.subject);
+  if (subject?.archived) return false;
+
+  const topic = catalog.topics.find((entry) => entry.id === item.topicId)
+    || catalog.topics.find((entry) => entry.subjectId === subject?.id && entry.name === item.topic);
+  if (topic?.archived) return false;
+
+  if (item.subtopic) {
+    const subtopic = catalog.subtopics.find((entry) => entry.id === item.subtopicId)
+      || catalog.subtopics.find((entry) => entry.topicId === topic?.id && entry.name === item.subtopic);
+    if (subtopic?.archived) return false;
+  }
+
+  return true;
+}
+
 function buildSmartStudyRecommendations() {
-  const topics = aggregateTopics();
+  const topics = aggregateTopics().filter((topic) => {
+    const reviewKey = getTopicKey(topic.subject, topic.topic, topic.subtopic);
+    return isSmartRecommendationCatalogItemActive(topic)
+      && !ReviewArchiveEngine.isKeyArchived(reviewPlans, reviewKey);
+  });
   const schedule = buildReviewSchedule();
 
   return topics.map((topic) => {
@@ -1364,6 +1386,7 @@ function renderSmartStudy() {
       <div class="smart-rank">${index + 1}</div>
       <div class="smart-study-copy">
         <strong>${escapeHtml(item.topic)}</strong>
+        ${item.subtopic ? `<span class="smart-subtopic">${escapeHtml(item.subtopic)}</span>` : ""}
         <small>${escapeHtml(item.subject)} • ${formatPercent(item.percentage)} • ${getRecommendationReason(item)}</small>
       </div>
       <button class="smart-score explanation-trigger" type="button" aria-label="${escapeAttribute(getSmartRecommendationExplanation(item, items, index))}">
@@ -1381,6 +1404,7 @@ function renderSmartStudy() {
     <div class="insight-main">
       <span>Maior prioridade agora</span>
       <strong>${escapeHtml(top.topic)}</strong>
+      ${top.subtopic ? `<span class="insight-subtopic">${escapeHtml(top.subtopic)}</span>` : ""}
       <small>${escapeHtml(top.subject)} • prioridade ${top.score}/100</small>
     </div>
     <div class="insight-stats">

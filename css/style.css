@@ -1243,12 +1243,20 @@ td { color: #dbe5ee; }
 }
 
 .smart-study-copy strong,
+.smart-study-copy .smart-subtopic,
 .smart-study-copy small {
   display:block;
 }
 
 .smart-study-copy strong {
   font-size:12px;
+}
+
+.smart-study-copy .smart-subtopic {
+  color:var(--muted);
+  font-size:10px;
+  margin-top:3px;
+  line-height:1.35;
 }
 
 .smart-study-copy small {
@@ -1316,6 +1324,12 @@ td { color: #dbe5ee; }
   display:block;
   margin:8px 0 5px;
   font-size:18px;
+}
+
+.insight-main .insight-subtopic {
+  margin:-1px 0 7px;
+  font-size:12px;
+  line-height:1.4;
 }
 
 .insight-stats {
