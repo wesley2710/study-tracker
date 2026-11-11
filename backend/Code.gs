@@ -179,7 +179,9 @@ function upsertMany_(type, records, ownerId) {
     const found = byId[(isGlobal ? '' : normalizedOwnerId + '|||') + scopedRecord.id];
     const incomingTime = Number(scopedRecord.deletedAt || scopedRecord.updatedAt || scopedRecord.createdAt || 0);
     const storedTime = found ? Number(found.item.deletedAt || found.item.updatedAt || found.item.createdAt || 0) : -1;
-    if (found && incomingTime < storedTime) return;
+    // Um registro com o mesmo timestamp já está sincronizado. Ignorá-lo evita
+    // regravar toda a planilha quando apenas um item foi alterado.
+    if (found && incomingTime <= storedTime) return;
     const row = info.headers.map(function(header, index) {
       return spec.headers.indexOf(header) === -1 ? (found ? found.raw[index] : '') : (scopedRecord[header] == null ? '' : scopedRecord[header]);
     });

@@ -2,6 +2,12 @@
 
 Aplicação estática em HTML, CSS e JavaScript Vanilla, com Chart.js, cache em LocalStorage e persistência principal em Google Sheets por meio de Google Apps Script.
 
+## Versão 2.13.3
+
+- O indicador de sincronização deixa de exibir permanentemente a quantidade total de registros.
+- Cada envio transmite somente os itens alterados desde o lote anterior, reduzindo o tempo conforme o histórico cresce.
+- O backend ignora registros que já possuem o mesmo timestamp, evitando regravações desnecessárias na planilha.
+
 ## Versão 2.13.2
 
 - A Prioridade Inteligente agora mostra o tema e, quando existir, o subtema em uma segunda linha discreta.

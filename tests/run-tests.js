@@ -169,6 +169,9 @@ const merge = syncContext.sync.mergeRecords;
 const normalizedMobileSessions = syncContext.sync.normalizeRecordDates([{ id: "mobile", date: "2026-09-18T03:00:00.000Z", durationSeconds: 2700 }]);
 assert.equal(normalizedMobileSessions[0].date, "2026-09-18", "data vinda do celular é normalizada");
 assert.equal(normalizedMobileSessions[0].durationSeconds, 2700, "normalização preserva o tempo informado no celular");
+assert.equal(syncContext.sync.recordsChangedSince([{ id: "old", updatedAt: 100 }, { id: "new", updatedAt: 201 }], 200).length, 1, "sincronização incremental envia somente registros alterados");
+assert.equal(syncContext.sync.recordsChangedSince([{ id: "same", updatedAt: 200 }], 200).length, 1, "registro alterado no mesmo milissegundo do início permanece elegível");
+assert.equal(syncContext.sync.recordsChangedSince([{ id: "initial", updatedAt: 100 }], null).length, 1, "primeira sincronização continua enviando o estado local completo");
 assert.equal(merge([{ id: "a", updatedAt: 2, subject: "novo" }], [{ id: "a", updatedAt: 1, subject: "antigo" }], {})[0].subject, "novo");
 assert.equal(merge([{ id: "a", updatedAt: 2 }], [{ id: "a", updatedAt: 3, subject: "remoto" }], {})[0].subject, "remoto");
 assert.equal(merge([{ id: "a", updatedAt: 2 }], [], { a: 3 }).length, 0, "tombstone mais novo vence");
@@ -180,6 +183,8 @@ assert.match(syncSource, /SYNC_DEBOUNCE_MS = 900/, "alterações próximas são 
 assert.doesNotMatch(syncSource, /await StudyApi\.getAll\(\)/, "sincronização não consulta todos os dados antes de cada envio");
 assert.match(syncSource, /const latest = adapter\.getState\(\)/, "resposta remota é combinada com o estado local mais recente");
 assert.match(syncSource, /localRevision !== revisionAtStart/, "mudanças durante um envio disparam automaticamente o lote seguinte");
+assert.match(syncSource, /recordsChangedSince\(local\.sessions, lastSyncAt\)/, "lotes posteriores não reenviam todo o histórico de sessões");
+assert.match(syncSource, /nextSyncMeta\(latest\.meta \|\| \{\}, sentMeta, syncStartedAt\)/, "marco incremental preserva mudanças feitas durante o envio");
 const metaAfterConcurrentChange = syncContext.sync.nextSyncMeta(
   { pendingChanges: 3, sessionTombstones: { old: 10, new: 30 } },
   { pendingChanges: 2, sessionTombstones: { old: 10 } },
@@ -441,8 +446,11 @@ assert.match(backendText, /subtopics: \{ name: 'Subtopics'/, "Apps Script cria s
 assert.match(backendText, /subtopicId/, "Apps Script suporta subtopicId retrocompatível");
 assert.match(backendText, /const missing = spec\.headers\.filter/, "migração acrescenta cabeçalhos ausentes por nome");
 assert.doesNotMatch(backendText, /clearContents\(/, "migração de planilha nunca limpa dados existentes");
+assert.match(backendText, /incomingTime <= storedTime/, "backend não regrava registros que já estão sincronizados");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /subtopicTombstones/, "sincronização inclui tombstones de subtemas");
 assert.match(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /pendingChanges/, "sincronização informa alterações pendentes");
+assert.doesNotMatch(fs.readFileSync(path.join(root, "js/sync.js"), "utf8"), /\$\{total\} registros/, "status sincronizado não exibe permanentemente a contagem de registros");
+assert.match(htmlText, /js\/sync\.js\?v=2\.13\.3/, "cache da sincronização é atualizado para carregar o fluxo incremental");
 assert.match(appText, /captureUndo\(`Arquivamento de/, "arquivamento cria cópia automática antes da alteração");
 assert.match(appText, /captureUndo\("Mesclagem de temas"\)/, "mesclagem cria cópia automática antes da alteração");
 assert.match(appText, /captureUndo\(`Consolidação de subtemas em/, "consolidação de subtemas cria cópia automática antes da alteração");

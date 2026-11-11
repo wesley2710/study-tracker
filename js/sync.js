@@ -31,6 +31,12 @@ const StudySync = (() => {
     });
   }
 
+  function recordsChangedSince(records, lastSyncAt) {
+    const cutoff = Number(lastSyncAt || 0);
+    if (!cutoff) return records || [];
+    return (records || []).filter((record) => timestamp(record) >= cutoff);
+  }
+
   // Last-write-wins por id. Tombstones evitam que exclusões reapareçam.
   function mergeRecords(localRecords, remoteRecords, tombstones) {
     const merged = new Map();
@@ -98,25 +104,28 @@ const StudySync = (() => {
     running = true;
     queued = false;
     const revisionAtStart = localRevision;
+    const syncStartedAt = Date.now();
     const local = adapter.getState();
     const sentMeta = snapshotSyncMeta(local.meta);
+    const lastSyncAt = Number(sentMeta.lastSyncAt || 0);
     const requestController = new AbortController();
     activeRequestController = requestController;
     setStatus("syncing", pending ? pendingLabel(pending) : "Conferindo dados");
 
     try {
       // O endpoint de sync já compara timestamps e devolve o estado remoto final.
-      // Assim evitamos a antiga consulta completa anterior a cada envio.
+      // Enviamos somente os registros alterados desde o último lote; o servidor
+      // continua devolvendo o estado completo para preservar outros dispositivos.
       const result = await StudyApi.sync({
-        profiles: local.profiles || [],
-        sessions: normalizeRecordDates(local.sessions),
-        reviews: normalizeRecordDates(local.reviews),
-        mocks: normalizeRecordDates(local.mocks),
-        subjects: local.subjects || [],
-        topics: local.topics || [],
-        subtopics: local.subtopics || [],
-        reviewPlans: local.reviewPlans || [],
-        settings: local.settings || [],
+        profiles: recordsChangedSince(local.profiles, lastSyncAt),
+        sessions: normalizeRecordDates(recordsChangedSince(local.sessions, lastSyncAt)),
+        reviews: normalizeRecordDates(recordsChangedSince(local.reviews, lastSyncAt)),
+        mocks: normalizeRecordDates(recordsChangedSince(local.mocks, lastSyncAt)),
+        subjects: recordsChangedSince(local.subjects, lastSyncAt),
+        topics: recordsChangedSince(local.topics, lastSyncAt),
+        subtopics: recordsChangedSince(local.subtopics, lastSyncAt),
+        reviewPlans: recordsChangedSince(local.reviewPlans, lastSyncAt),
+        settings: recordsChangedSince(local.settings, lastSyncAt),
         sessionTombstones: sentMeta.sessionTombstones || {},
         reviewTombstones: sentMeta.reviewTombstones || {},
         mockTombstones: sentMeta.mockTombstones || {},
@@ -132,7 +141,9 @@ const StudySync = (() => {
       // a sincronização estava em andamento.
       const latest = adapter.getState();
       const syncedAt = Date.now();
-      const meta = nextSyncMeta(latest.meta || {}, sentMeta, syncedAt);
+      // O marco usa o início do envio. Assim, qualquer edição feita durante a
+      // requisição continua elegível para o lote seguinte.
+      const meta = nextSyncMeta(latest.meta || {}, sentMeta, syncStartedAt);
       const nextState = {
         profiles: mergeRecords(latest.profiles, result.profiles, {}),
         sessions: mergeRecords(normalizeRecordDates(latest.sessions), normalizeRecordDates(result.sessions), meta.sessionTombstones),
@@ -150,10 +161,8 @@ const StudySync = (() => {
       clearTimeout(retryTimer);
       retryTimer = null;
 
-      const total = nextState.profiles.length + nextState.sessions.length + nextState.reviews.length + nextState.mocks.length
-        + nextState.subjects.length + nextState.topics.length + nextState.subtopics.length + nextState.reviewPlans.length + nextState.settings.length;
       if (meta.pendingChanges) setStatus("pending", pendingLabel(meta.pendingChanges));
-      else setStatus("synced", `${new Date(syncedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} • ${total} registros`);
+      else setStatus("synced", new Date(syncedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (error) {
       const message = String(error.message || error);
       const cancelled = message.includes("REQUEST_CANCELLED");
@@ -219,5 +228,5 @@ const StudySync = (() => {
     run();
   }
 
-  return { init, run, mergeRecords, normalizeISODate, normalizeRecordDates, nextSyncMeta, snapshotSyncMeta };
+  return { init, run, mergeRecords, normalizeISODate, normalizeRecordDates, recordsChangedSince, nextSyncMeta, snapshotSyncMeta };
 })();
